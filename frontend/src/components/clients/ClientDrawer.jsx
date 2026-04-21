@@ -100,18 +100,30 @@ export default function ClientDrawer({ client, onClose, onRefresh }) {
         }
       });
 
-      const payload = {
-        full_name: values.full_name,
-        phone_number: values.phone_number,
-        email: values.email || null,
-        follow_up_context: values.follow_up_context,
-        timezone: values.timezone,
-        notes: values.notes || null,
-        custom_fields: customFieldsObj
-      };
+      // SMART DIFF: Only send fields that actually changed
+      const payload = {};
+      
+      if (values.full_name !== client.full_name) payload.full_name = values.full_name;
+      if (values.phone_number !== client.phone_number) payload.phone_number = values.phone_number;
+      if (values.email !== client.email) payload.email = values.email || null;
+      if (values.follow_up_context !== client.follow_up_context) payload.follow_up_context = values.follow_up_context;
+      if (values.timezone !== client.timezone) payload.timezone = values.timezone;
+      if (values.notes !== client.notes) payload.notes = values.notes || null;
+      
+      // Always compare custom fields as a whole
+      if (JSON.stringify(customFieldsObj) !== JSON.stringify(client.custom_fields || {})) {
+        payload.custom_fields = customFieldsObj;
+      }
+
+      // If nothing changed, just close the edit mode
+      if (Object.keys(payload).length === 0) {
+        setTab('details');
+        setIsSaving(false);
+        return;
+      }
 
       await clientService.updateClient(client.id, payload);
-      toast.success('Lead saved successfully');
+      toast.success('Lead updated successfully');
       setTab('details');
       onRefresh(); // Refresh parent list
     } catch (err) {

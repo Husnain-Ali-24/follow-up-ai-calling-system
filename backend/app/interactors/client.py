@@ -35,7 +35,7 @@ def create_client(db: Session, client: ClientCreate) -> Client:
         scheduled_call_time=client.scheduled_call_time,
         timezone=client.timezone,
         notes=client.notes,
-        custom_fields=client.custom_fields,
+        custom_fields=client.custom_fields or {},
         status=ClientStatus.PENDING
     )
     db.add(db_client)
@@ -53,8 +53,10 @@ def update_client(db: Session, client_id: UUID, client_update: ClientUpdate) -> 
         setattr(db_client, key, value)
 
     # SQLAlchemy cannot auto-detect mutations inside JSON columns;
-    # flag_modified tells it the column is dirty so it gets persisted.
     if 'custom_fields' in update_data:
+        # Ensure it's a dict and never None
+        new_val = update_data['custom_fields'] or {}
+        db_client.custom_fields = dict(new_val)
         flag_modified(db_client, 'custom_fields')
 
     db.commit()
