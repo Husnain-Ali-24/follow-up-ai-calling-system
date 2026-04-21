@@ -1,0 +1,312 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────────────────────
+   DARK MODE (default / .dark class on <html>)
+───────────────────────────────────────────────────────────── */
+:root,
+.dark {
+  color-scheme: dark;
+
+  /* Backgrounds */
+  --bg-primary:    #0d0d14;
+  --bg-secondary:  #13131e;
+  --bg-card:       #18182a;
+  --bg-card-hover: #1e1e30;
+  --bg-elevated:   #22223a;
+  --bg-input:      #1a1a2e;
+  --bg-input-focus:#1e1e36;
+  --bg-overlay:    rgba(0, 0, 0, 0.7);
+
+  /* Borders */
+  --border-subtle:  #1f1f38;
+  --border-default: #2c2c4a;
+  --border-strong:  #3d3d60;
+  --border-focus:   #6c63ff;
+  --border-input:   #2a2a48;
+
+  /* Text */
+  --text-primary:   #f0f0ff;
+  --text-secondary: #9898c0;
+  --text-muted:     #5a5a80;
+  --text-placeholder: #4a4a70;
+  --text-on-accent: #ffffff;
+  --text-inverse:   #0d0d14;
+
+  /* Brand / Accent */
+  --accent-primary:       #6c63ff;
+  --accent-primary-hover: #7c74ff;
+  --accent-primary-active:#5a52e0;
+  --accent-secondary:     #a78bfa;
+  --accent-glow:          rgba(108, 99, 255, 0.18);
+  --accent-subtle:        rgba(108, 99, 255, 0.08);
+
+  /* Status */
+  --status-success:    #22c55e;
+  --status-success-bg: rgba(34, 197, 94, 0.12);
+  --status-warning:    #f59e0b;
+  --status-warning-bg: rgba(245, 158, 11, 0.12);
+  --status-error:      #f87171;
+  --status-error-bg:   rgba(248, 113, 113, 0.12);
+  --status-info:       #60a5fa;
+  --status-info-bg:    rgba(96, 165, 250, 0.12);
+  --status-neutral:    #94a3b8;
+  --status-neutral-bg: rgba(148, 163, 184, 0.12);
+
+  /* Sentiment */
+  --sentiment-positive: #4ade80;
+  --sentiment-neutral:  #fbbf24;
+  --sentiment-negative: #f87171;
+
+  /* Sidebar */
+  --sidebar-bg:          #0d0d14;
+  --sidebar-border:      #1f1f38;
+  --sidebar-item-active: rgba(108, 99, 255, 0.15);
+  --sidebar-item-hover:  rgba(255, 255, 255, 0.04);
+  --sidebar-text-active: #a78bfa;
+  --sidebar-icon-active: #6c63ff;
+
+  /* Shadows */
+  --shadow-sm:     0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-md:     0 4px 16px rgba(0, 0, 0, 0.6);
+  --shadow-lg:     0 8px 40px rgba(0, 0, 0, 0.7);
+  --shadow-accent: 0 0 24px rgba(108, 99, 255, 0.25);
+  --shadow-card:   0 0 0 1px rgba(255,255,255,0.04);
+  --shadow-input:  0 0 0 3px rgba(108, 99, 255, 0.2);
+
+  /* Toggle button */
+  --toggle-bg:     #1e1e36;
+  --toggle-border: #3d3d60;
+  --toggle-icon:   #a78bfa;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   LIGHT MODE (.light class on <html>)
+───────────────────────────────────────────────────────────── */
+.light {
+  color-scheme: light;
+
+  /* Backgrounds */
+  --bg-primary:    #f4f4fb;
+  --bg-secondary:  #ebebf7;
+  --bg-card:       #ffffff;
+  --bg-card-hover: #f8f8ff;
+  --bg-elevated:   #ffffff;
+  --bg-input:      #ffffff;
+  --bg-input-focus:#fafaff;
+  --bg-overlay:    rgba(0, 0, 0, 0.4);
+
+  /* Borders */
+  --border-subtle:  #e4e4f0;
+  --border-default: #d0d0e8;
+  --border-strong:  #b8b8d8;
+  --border-focus:   #6c63ff;
+  --border-input:   #d0d0e8;
+
+  /* Text */
+  --text-primary:     #1a1a2e;
+  --text-secondary:   #4a4a70;
+  --text-muted:       #8888aa;
+  --text-placeholder: #aaaacc;
+  --text-on-accent:   #ffffff;
+  --text-inverse:     #f0f0ff;
+
+  /* Brand / Accent */
+  --accent-primary:       #5b52e8;
+  --accent-primary-hover: #4840d0;
+  --accent-primary-active:#3a30b8;
+  --accent-secondary:     #7c3aed;
+  --accent-glow:          rgba(91, 82, 232, 0.15);
+  --accent-subtle:        rgba(91, 82, 232, 0.06);
+
+  /* Status */
+  --status-success:    #16a34a;
+  --status-success-bg: rgba(22, 163, 74, 0.08);
+  --status-warning:    #d97706;
+  --status-warning-bg: rgba(217, 119, 6, 0.08);
+  --status-error:      #dc2626;
+  --status-error-bg:   rgba(220, 38, 38, 0.08);
+  --status-info:       #2563eb;
+  --status-info-bg:    rgba(37, 99, 235, 0.08);
+  --status-neutral:    #64748b;
+  --status-neutral-bg: rgba(100, 116, 139, 0.08);
+
+  /* Sentiment */
+  --sentiment-positive: #16a34a;
+  --sentiment-neutral:  #d97706;
+  --sentiment-negative: #dc2626;
+
+  /* Sidebar */
+  --sidebar-bg:          #ffffff;
+  --sidebar-border:      #e4e4f0;
+  --sidebar-item-active: rgba(91, 82, 232, 0.08);
+  --sidebar-item-hover:  rgba(0, 0, 0, 0.03);
+  --sidebar-text-active: #5b52e8;
+  --sidebar-icon-active: #5b52e8;
+
+  /* Shadows */
+  --shadow-sm:     0 1px 4px rgba(0, 0, 0, 0.08);
+  --shadow-md:     0 4px 16px rgba(0, 0, 0, 0.10);
+  --shadow-lg:     0 8px 40px rgba(0, 0, 0, 0.14);
+  --shadow-accent: 0 0 24px rgba(91, 82, 232, 0.20);
+  --shadow-card:   0 0 0 1px rgba(0, 0, 0, 0.04);
+  --shadow-input:  0 0 0 3px rgba(91, 82, 232, 0.15);
+
+  /* Toggle button */
+  --toggle-bg:     #ebebf7;
+  --toggle-border: #d0d0e8;
+  --toggle-icon:   #5b52e8;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   SPACING, RADIUS, TYPOGRAPHY (mode-independent)
+───────────────────────────────────────────────────────────── */
+:root, .dark, .light {
+  --space-1: 4px;  --space-2: 8px;   --space-3: 12px;
+  --space-4: 16px; --space-5: 20px;  --space-6: 24px;
+  --space-8: 32px; --space-10: 40px; --space-12: 48px;
+
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   14px;
+  --radius-xl:   20px;
+  --radius-full: 9999px;
+
+  --font-sans: 'Geist', 'Inter', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', 'JetBrains Mono', monospace;
+
+  --transition-fast:   120ms ease;
+  --transition-normal: 200ms ease;
+  --transition-slow:   350ms ease;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   BASE / RESET
+───────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+  transition: background var(--transition-slow), color var(--transition-slow);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   GLOBAL INPUT / FORM FIXES
+   These override browser defaults that cause white bg + invisible text
+───────────────────────────────────────────────────────────── */
+input,
+textarea,
+select {
+  background-color: var(--bg-input) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-input) !important;
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  transition:
+    border-color var(--transition-fast),
+    background-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-placeholder) !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none !important;
+  border-color: var(--border-focus) !important;
+  background-color: var(--bg-input-focus) !important;
+  box-shadow: var(--shadow-input) !important;
+}
+
+/* Fix Chrome autofill yellow bg */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-primary) !important;
+  -webkit-box-shadow: 0 0 0px 1000px var(--bg-input) inset !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Select dropdown options */
+select option {
+  background-color: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+/* Fix shadcn Input in both modes */
+.dark .bg-background,
+.dark [class*="bg-white"],
+.dark input[class*="shadcn"],
+.light .bg-background {
+  background-color: var(--bg-input) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   SCROLLBAR STYLING
+───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ─────────────────────────────────────────────────────────────
+   BUTTON CLASSES
+───────────────────────────────────────────────────────────── */
+@layer components {
+  .btn-primary {
+    @apply bg-[var(--accent-primary)] text-[var(--text-on-accent)] px-4 py-2 rounded-md font-medium transition-colors hover:bg-[var(--accent-primary-hover)];
+  }
+  
+  .btn-secondary {
+    @apply bg-transparent border border-[var(--border-default)] text-[var(--text-primary)] px-4 py-2 rounded-md font-medium transition-colors hover:bg-[var(--bg-card-hover)];
+  }
+
+  .btn-ghost {
+    @apply bg-transparent text-[var(--text-secondary)] px-4 py-2 rounded-md font-medium transition-colors hover:bg-[var(--bg-card-hover)] hover:text-[var(--text-primary)];
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-[var(--border-strong)] rounded-full;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-[var(--text-muted)];
+  }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
