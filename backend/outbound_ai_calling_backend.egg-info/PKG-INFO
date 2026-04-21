@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: outbound-ai-calling-backend
+Version: 0.1.0
+Summary: FastAPI backend for the outbound AI calling system
+Requires-Python: >=3.11
+Requires-Dist: fastapi<1.0.0,>=0.115.0
+Requires-Dist: uvicorn[standard]<1.0.0,>=0.34.0
+Requires-Dist: sqlalchemy<3.0.0,>=2.0.0
+Requires-Dist: psycopg[binary]<4.0.0,>=3.2.0
+Requires-Dist: pydantic-settings<3.0.0,>=2.6.0
+Requires-Dist: PyJWT<3.0.0,>=2.10.0
+Requires-Dist: passlib[bcrypt]<2.0.0,>=1.7.4
+Requires-Dist: email-validator<3.0.0,>=2.2.0

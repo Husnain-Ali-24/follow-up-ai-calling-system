@@ -1,56 +1,39 @@
 import api from './api';
-import { DUMMY_CLIENTS } from '../data/dummy/clients.dummy';
 
 const clientService = {
   getClients: async (filters) => {
-    // Use dummy data for now
-    await new Promise(resolve => setTimeout(resolve, 500));
-    let filtered = [...DUMMY_CLIENTS];
+    const params = new URLSearchParams();
+    if (filters?.search) params.append('search', filters.search);
+    if (filters?.skip) params.append('skip', filters.skip);
+    if (filters?.limit) params.append('limit', filters.limit);
     
-    if (filters?.search) {
-      const q = filters.search.toLowerCase();
-      filtered = filtered.filter(c => 
-        c.full_name.toLowerCase().includes(q) || 
-        c.phone_number.includes(q)
-      );
-    }
-    
-    if (filters?.status && filters.status !== 'all') {
-      filtered = filtered.filter(c => c.status === filters.status);
-    }
-    
-    return {
-      data: filtered,
-      total: filtered.length,
-      page: filters?.page || 1,
-      per_page: filters?.per_page || 10
-    };
+    const response = await api.get(`/clients/?${params.toString()}`);
+    return { data: response.data, total: response.data.length };
   },
   
   getClientById: async (id) => {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    return DUMMY_CLIENTS.find(c => c.client_id === id);
+    const response = await api.get(`/clients/${id}`);
+    return response.data;
   },
   
   createClient: async (payload) => {
-    await new Promise(resolve => setTimeout(resolve, 800));
-    const newClient = {
-      ...payload,
-      client_id: `c-${Math.floor(Math.random() * 1000)}`,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    return newClient;
+    const response = await api.post('/clients/', payload);
+    return response.data;
   },
   
   updateClient: async (id, payload) => {
-    await new Promise(resolve => setTimeout(resolve, 800));
-    return { ...payload, client_id: id, updated_at: new Date().toISOString() };
+    const response = await api.patch(`/clients/${id}`, payload);
+    return response.data;
   },
   
   deleteClient: async (id) => {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return true;
+    const response = await api.delete(`/clients/${id}`);
+    return response.data;
+  },
+
+  importBulk: async (payload) => {
+    const response = await api.post('/clients/bulk', payload);
+    return response.data;
   }
 };
 

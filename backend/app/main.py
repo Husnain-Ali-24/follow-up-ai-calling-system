@@ -9,9 +9,8 @@ from app.core.config import settings
 from app.database.base import Base
 from app.database.session import engine
 from app.models import User  # noqa: F401
-from app.routes import auth, health
+from app.routes import auth, health, client
 from app.seed import seed_default_admin
-
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 INDEX_FILE = STATIC_DIR / "index.html"
@@ -40,6 +39,7 @@ app.add_middleware(
 
 app.include_router(health.router, prefix=settings.api_v1_prefix)
 app.include_router(auth.router, prefix=settings.api_v1_prefix)
+app.include_router(client.router, prefix=settings.api_v1_prefix)
 
 
 @app.get("/", include_in_schema=False)

@@ -8,13 +8,26 @@ import {
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
-export default function DataTable({ columns, data, loading }) {
+export default function DataTable({ 
+  columns, 
+  data, 
+  loading, 
+  rowSelection = {}, 
+  onRowSelectionChange = () => {},
+  getRowId,
+  onRowClick,
+}) {
   const table = useReactTable({
     data,
     columns,
+    state: {
+      rowSelection,
+    },
+    onRowSelectionChange,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getRowId,
   });
 
   return (
@@ -55,9 +68,26 @@ export default function DataTable({ columns, data, loading }) {
                 ))
               ) : table.getRowModel().rows.length > 0 ? (
                 table.getRowModel().rows.map(row => (
-                  <tr key={row.id} className="hover:bg-background-hover transition-colors group">
+                  <tr 
+                    key={row.id} 
+                    onClick={() => onRowClick?.(row)}
+                    className={cn(
+                      "transition-colors group",
+                      onRowClick && "cursor-pointer",
+                      row.getIsSelected()
+                        ? "bg-accent-subtle/50 hover:bg-accent-subtle"
+                        : onRowClick
+                          ? "hover:bg-background-hover"
+                          : ""
+                    )}
+                  >
                     {row.getVisibleCells().map(cell => (
-                      <td key={cell.id} className="px-6 py-4 text-text-secondary group-hover:text-text-primary transition-colors">
+                      <td
+                        key={cell.id}
+                        // Stop propagation on the checkbox cell so selection doesn't open the drawer
+                        onClick={cell.column.id === 'select' ? e => e.stopPropagation() : undefined}
+                        className="px-6 py-4 text-text-secondary group-hover:text-text-primary transition-colors"
+                      >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
                     ))}
@@ -77,7 +107,13 @@ export default function DataTable({ columns, data, loading }) {
 
       <div className="flex items-center justify-between px-2">
         <div className="text-sm text-text-muted">
-          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+          {table.getFilteredSelectedRowModel().rows.length > 0 ? (
+            <span className="text-accent-primary font-medium">
+              {table.getFilteredSelectedRowModel().rows.length} of {table.getFilteredRowModel().rows.length} row(s) selected
+            </span>
+          ) : (
+            `Page ${table.getState().pagination.pageIndex + 1} of ${table.getPageCount()}`
+          )}
         </div>
         <div className="flex items-center space-x-2">
           <button
