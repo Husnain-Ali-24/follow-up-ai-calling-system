@@ -1,16 +1,32 @@
 services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - custom_net
+
   app:
     build:
       context: .
       dockerfile: Dockerfile
       network: host
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "8000:8000"
     env_file:
       - ./backend/.env
     restart: unless-stopped
-    volumes:
-      - ./db_data:/app/data
     networks:
       - custom_net
 
@@ -19,3 +35,6 @@ networks:
     driver: bridge
     driver_opts:
       com.docker.network.driver.mtu: 1400
+
+volumes:
+  postgres_data:

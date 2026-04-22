@@ -167,6 +167,7 @@ export default function ClientImportModal({ open, onOpenChange, onSuccess }) {
   const [previewRows, setPreviewRows] = useState([]);
   // Full parsed data — populated only when user confirms import
   const [totalRowCount, setTotalRowCount] = useState(null);
+  const [estimatedRows, setEstimatedRows] = useState(null);
   const [headers, setHeaders] = useState([]);
   const [mappings, setMappings] = useState({});
   const [isImporting, setIsImporting] = useState(false);
@@ -182,6 +183,7 @@ export default function ClientImportModal({ open, onOpenChange, onSuccess }) {
     const file = e.target.files[0];
     if (!file) return;
     fileRef.current = file;
+    setEstimatedRows(estimateRowCount(file, 50));
 
     let rowBuffer = [];
     let parsedHeaders = [];
@@ -234,11 +236,6 @@ export default function ClientImportModal({ open, onOpenChange, onSuccess }) {
       return;
     }
 
-    if (mappedDbFields.includes('scheduled_call_time') && !mappedDbFields.includes('timezone')) {
-      toast.error('Map a timezone column when using scheduled call time for auto-calling.');
-      return;
-    }
-
     setIsImporting(true);
     try {
       // Full parse happens here — only once, at import time
@@ -259,9 +256,9 @@ export default function ClientImportModal({ open, onOpenChange, onSuccess }) {
         return;
       }
 
-      if (schedulingSummary.missingTimezoneRows > 0 || schedulingSummary.invalidTimezoneRows > 0) {
+      if (schedulingSummary.invalidTimezoneRows > 0) {
         toast.error(
-          `Fix timezone values before import. Missing: ${schedulingSummary.missingTimezoneRows}, invalid: ${schedulingSummary.invalidTimezoneRows}.`
+          `Fix timezone values before import. Invalid rows: ${schedulingSummary.invalidTimezoneRows}. Missing timezones can be inferred from phone numbers when possible.`
         );
         return;
       }
@@ -277,7 +274,7 @@ export default function ClientImportModal({ open, onOpenChange, onSuccess }) {
         return {
           ...client,
           follow_up_context: client.follow_up_context || 'Imported via CSV',
-          timezone: client.timezone || 'UTC',
+          timezone: client.timezone || null,
           custom_fields,
         };
       });
@@ -301,6 +298,7 @@ export default function ClientImportModal({ open, onOpenChange, onSuccess }) {
     setStep(1);
     setPreviewRows([]);
     setTotalRowCount(null);
+    setEstimatedRows(null);
     setHeaders([]);
     setMappings({});
     fileRef.current = null;
@@ -430,15 +428,15 @@ export default function ClientImportModal({ open, onOpenChange, onSuccess }) {
                   {[
                     { icon: Check, color: 'var(--status-success)', text: 'Include country codes in phone numbers (+1, +44, etc.) for accurate AI calling.' },
                     { icon: Zap, color: 'var(--accent-primary)', text: 'Smart detection: columns like "Name", "Mobile", "Schedule Time", and "Timezone" are auto-mapped when possible.' },
-                  ].map(({ icon: Icon, color, text }, i) => (
+                  ].map((item, i) => (
                     <div key={i} style={{
                       padding: '14px 16px', borderRadius: 'var(--radius-md)',
                       background: 'var(--bg-secondary)',
                       border: '1px solid var(--border-default)',
                       display: 'flex', gap: '12px',
                     }}>
-                      <Icon size={16} style={{ color, flexShrink: 0, marginTop: 2 }} />
-                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{text}</p>
+                      <item.icon size={16} style={{ color: item.color, flexShrink: 0, marginTop: 2 }} />
+                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{item.text}</p>
                     </div>
                   ))}
                 </div>
@@ -565,7 +563,7 @@ export default function ClientImportModal({ open, onOpenChange, onSuccess }) {
             <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
               {step === 2 && (
                 <>
-                  <span style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>{totalRowCount ?? `~${estimateRowCount(fileRef.current, 50)}`}</span>
+                  <span style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>{totalRowCount ?? `~${estimatedRows}`}</span>
                   {' rows · '}
                   <span style={{ color: 'var(--status-success)', fontWeight: 600 }}>
                     {Object.values(mappings).filter(m => m !== 'custom' && m !== 'ignore').length}

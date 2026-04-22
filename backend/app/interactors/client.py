@@ -1,24 +1,13 @@
-from datetime import timezone, datetime
 from uuid import UUID
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from sqlalchemy.orm.attributes import flag_modified
-from zoneinfo import ZoneInfo
 
 from app.models.client import Client, ClientStatus
 from app.schemas.client import ClientCreate, ClientUpdate
-
-
-def _normalize_scheduled_call_time(scheduled_call_time, timezone_name: str):
-    if scheduled_call_time is None:
-        return None
-
-    client_tz = ZoneInfo(timezone_name)
-    if scheduled_call_time.tzinfo is None:
-        scheduled_call_time = scheduled_call_time.replace(tzinfo=client_tz)
-
-    return scheduled_call_time.astimezone(timezone.utc)
+from app.services.calling_window import get_effective_calling_window
+from app.services.client_scheduling import resolve_lead_timezone, resolve_scheduled_call_time
 
 def get_clients(db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None) -> List[Client]:
     query = db.query(Client)
@@ -50,10 +39,13 @@ def get_client_by_phone_excluding_id(db: Session, phone_number: str, client_id: 
     )
 
 def create_client(db: Session, client: ClientCreate) -> Client:
-    scheduled_time = _normalize_scheduled_call_time(
-        client.scheduled_call_time,
-        client.timezone,
-    ) if client.scheduled_call_time else datetime.now(timezone.utc)
+    call_window = get_effective_calling_window(db)
+    timezone_name = resolve_lead_timezone(client.phone_number, client.timezone)
+    scheduled_time = resolve_scheduled_call_time(
+        scheduled_call_time=client.scheduled_call_time,
+        timezone_name=timezone_name,
+        call_window=call_window,
+    )
 
     db_client = Client(
         full_name=client.full_name,
@@ -62,7 +54,7 @@ def create_client(db: Session, client: ClientCreate) -> Client:
         follow_up_context=client.follow_up_context,
         previous_interaction=client.previous_interaction,
         scheduled_call_time=scheduled_time,
-        timezone=client.timezone,
+        timezone=timezone_name,
         notes=client.notes,
         custom_fields=client.custom_fields or {},
         status=ClientStatus.PENDING,
@@ -80,12 +72,21 @@ def update_client(db: Session, client_id: UUID, client_update: ClientUpdate) -> 
         return None
 
     update_data = client_update.model_dump(exclude_unset=True)
+    call_window = get_effective_calling_window(db)
+    next_phone_number = update_data.get("phone_number", db_client.phone_number)
+
+    if "timezone" in update_data:
+        update_data["timezone"] = resolve_lead_timezone(
+            next_phone_number,
+            update_data.get("timezone"),
+        )
     timezone_name = update_data.get("timezone", db_client.timezone)
 
     if "scheduled_call_time" in update_data:
-        update_data["scheduled_call_time"] = _normalize_scheduled_call_time(
-            update_data["scheduled_call_time"],
-            timezone_name,
+        update_data["scheduled_call_time"] = resolve_scheduled_call_time(
+            scheduled_call_time=update_data["scheduled_call_time"],
+            timezone_name=timezone_name,
+            call_window=call_window,
         )
 
     for key, value in update_data.items():

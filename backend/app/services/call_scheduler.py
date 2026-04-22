@@ -12,7 +12,11 @@ from app.core.config import settings
 from app.database.session import SessionLocal
 from app.models.call import Call, CallStatus
 from app.models.client import Client, ClientStatus
-from app.services.calling_window import is_within_calling_window, next_call_window_start
+from app.services.calling_window import (
+    get_effective_calling_window,
+    is_within_calling_window,
+    next_call_window_start,
+)
 from app.services.vapi_client import VapiConfigurationError, start_outbound_call
 
 
@@ -59,10 +63,15 @@ def _get_due_client_ids(limit: int) -> list[str]:
             .limit(limit * 3 if limit > 0 else 0)
             .all()
         )
+        call_window = get_effective_calling_window(db)
 
         selected_client_ids: list[str] = []
         for client in clients:
-            if is_within_calling_window(client.timezone, reference_time=now_utc):
+            if is_within_calling_window(
+                client.timezone,
+                reference_time=now_utc,
+                call_window=call_window,
+            ):
                 selected_client_ids.append(str(client.id))
                 if len(selected_client_ids) >= limit:
                     break
@@ -70,6 +79,7 @@ def _get_due_client_ids(limit: int) -> list[str]:
                 client.scheduled_call_time = next_call_window_start(
                     client.timezone,
                     reference_time=now_utc,
+                    call_window=call_window,
                 )
                 db.add(client)
 
@@ -88,6 +98,8 @@ async def trigger_client_call(client_id: str) -> bool:
     try:
         client_uuid = UUID(str(client_id))
         client = db.query(Client).filter(Client.id == client_uuid).first()
+        call_window = get_effective_calling_window(db)
+
         if client is None:
             return False
 
@@ -104,10 +116,15 @@ async def trigger_client_call(client_id: str) -> bool:
         if client_scheduled_time is None or client_scheduled_time > now_utc:
             return False
 
-        if not is_within_calling_window(client.timezone, reference_time=now_utc):
+        if not is_within_calling_window(
+            client.timezone,
+            reference_time=now_utc,
+            call_window=call_window,
+        ):
             client.scheduled_call_time = next_call_window_start(
                 client.timezone,
                 reference_time=now_utc,
+                call_window=call_window,
             )
             db.commit()
             return False
@@ -207,9 +224,17 @@ async def scheduler_tick() -> int:
     
     logger.info("Found %s leads due for calling: %s", len(client_ids), client_ids)
 
+    results = await asyncio.gather(
+        *(trigger_client_call(client_id) for client_id in client_ids),
+        return_exceptions=True,
+    )
+
     triggered = 0
-    for client_id in client_ids:
-        if await trigger_client_call(client_id):
+    for client_id, result in zip(client_ids, results):
+        if isinstance(result, Exception):
+            logger.exception("Unhandled scheduler trigger error for client %s", client_id, exc_info=result)
+            continue
+        if result:
             triggered += 1
 
     return triggered

@@ -14,7 +14,7 @@ class ClientBase(BaseModel):
     follow_up_context: str = Field(..., description="Context for the follow-up call")
     previous_interaction: Optional[str] = Field(None, description="Notes on previous interaction")
     scheduled_call_time: Optional[datetime] = Field(None, description="When to call the client")
-    timezone: str = Field("UTC", description="Client's timezone")
+    timezone: Optional[str] = Field(None, description="Client's timezone")
     notes: Optional[str] = Field(None, description="Operator notes")
     custom_fields: Dict[str, Any] = Field(default_factory=dict, description="Custom mapped fields from import")
 
@@ -38,7 +38,14 @@ class ClientBase(BaseModel):
 
     @field_validator("timezone")
     @classmethod
-    def validate_timezone(cls, value: str) -> str:
+    def validate_timezone(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+
+        value = value.strip()
+        if not value:
+            return None
+
         try:
             ZoneInfo(value)
         except ZoneInfoNotFoundError as exc:
@@ -75,6 +82,9 @@ class ClientUpdate(BaseModel):
     def validate_timezone(cls, value: Optional[str]) -> Optional[str]:
         if value is None:
             return value
+        value = value.strip()
+        if not value:
+            return None
         try:
             ZoneInfo(value)
         except ZoneInfoNotFoundError as exc:
@@ -82,6 +92,7 @@ class ClientUpdate(BaseModel):
         return value
 
 class ClientResponse(ClientBase):
+    timezone: str
     id: UUID
     status: ClientStatus
     is_active: bool

@@ -9,8 +9,8 @@ from fastapi.responses import FileResponse
 from app.core.config import settings
 from app.database.base import Base
 from app.database.session import engine
-from app.models import Call, Client, Reschedule, User  # noqa: F401
-from app.routes import auth, health, client, webhooks
+from app.models import AppSettings, Call, Client, Reschedule, User  # noqa: F401
+from app.routes import auth, health, client, settings as settings_route, webhooks
 from app.services.call_scheduler import run_scheduler_loop, shutdown_scheduler
 from app.seed import seed_default_admin
 
@@ -49,6 +49,7 @@ app.add_middleware(
 app.include_router(health.router, prefix=settings.api_v1_prefix)
 app.include_router(auth.router, prefix=settings.api_v1_prefix)
 app.include_router(client.router, prefix=settings.api_v1_prefix)
+app.include_router(settings_route.router, prefix=settings.api_v1_prefix)
 app.include_router(webhooks.router, prefix=settings.api_v1_prefix)
 
 

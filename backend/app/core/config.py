@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     calling_window_start: str = "09:00"
-    calling_window_end: str = "20:00"
+    calling_window_end: str = "17:00"
     max_call_retries: int = 3
     retry_delay_1_minutes: int = 30
     retry_delay_2_minutes: int = 120

@@ -90,7 +90,7 @@ def import_clients(
                 follow_up_context=context,
                 previous_interaction=row.get('previous_interaction'),
                 scheduled_call_time=scheduled_call_time,
-                timezone=row.get('timezone') or "UTC",
+                timezone=row.get('timezone'),
                 notes=row.get('notes'),
                 custom_fields=custom_fields
             )

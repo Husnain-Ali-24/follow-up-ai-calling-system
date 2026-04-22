@@ -11,7 +11,11 @@ from app.core.config import settings
 from app.database.session import SessionLocal
 from app.models.call import Call, CallStatus, Reschedule
 from app.models.client import Client, ClientStatus
-from app.services.calling_window import align_to_calling_window, next_call_window_start
+from app.services.calling_window import (
+    align_to_calling_window,
+    get_effective_calling_window,
+    next_call_window_start,
+)
 from app.services.webhook_verifier import verify_vapi_request
 
 
@@ -69,7 +73,7 @@ def _update_client_status_from_call(client: Client, call: Call) -> None:
         client.status = ClientStatus.IN_PROGRESS
 
 
-def _get_retry_target_time(client: Client, call: Call, reference_time: datetime) -> datetime | None:
+def _get_retry_target_time(client: Client, call: Call, reference_time: datetime, call_window) -> datetime | None:
     if call.attempt_number >= settings.max_call_retries:
         return None
 
@@ -80,11 +84,15 @@ def _get_retry_target_time(client: Client, call: Call, reference_time: datetime)
     else:
         retry_time = reference_time + timedelta(hours=settings.retry_delay_3_hours)
 
-    return align_to_calling_window(retry_time, client.timezone)
+    return align_to_calling_window(
+        retry_time,
+        client.timezone,
+        call_window=call_window,
+    )
 
 
-def _schedule_retry(client: Client, call: Call, reference_time: datetime) -> None:
-    retry_time = _get_retry_target_time(client, call, reference_time)
+def _schedule_retry(client: Client, call: Call, reference_time: datetime, call_window) -> None:
+    retry_time = _get_retry_target_time(client, call, reference_time, call_window)
     if retry_time is None:
         client.status = ClientStatus.MANUAL_FOLLOW_UP_REQUIRED
         return
@@ -93,7 +101,7 @@ def _schedule_retry(client: Client, call: Call, reference_time: datetime) -> Non
     client.status = ClientStatus.PENDING
 
 
-def _parse_reschedule_time(raw_value: str | None, timezone_name: str) -> datetime | None:
+def _parse_reschedule_time(raw_value: str | None, timezone_name: str, call_window) -> datetime | None:
     if not raw_value:
         return None
 
@@ -106,7 +114,11 @@ def _parse_reschedule_time(raw_value: str | None, timezone_name: str) -> datetim
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=client_tz)
 
-    return align_to_calling_window(parsed.astimezone(timezone.utc), timezone_name)
+    return align_to_calling_window(
+        parsed.astimezone(timezone.utc),
+        timezone_name,
+        call_window=call_window,
+    )
 
 
 def _handle_reschedule(
@@ -114,6 +126,7 @@ def _handle_reschedule(
     client: Client,
     call: Call,
     function_call_payload: dict,
+    call_window,
 ) -> None:
     if client.reschedule_count >= 3:
         client.status = ClientStatus.MANUAL_FOLLOW_UP_REQUIRED
@@ -123,9 +136,10 @@ def _handle_reschedule(
     requested_time = _parse_reschedule_time(
         parameters.get("new_datetime") or parameters.get("scheduled_call_time"),
         client.timezone,
+        call_window,
     )
     if requested_time is None:
-        requested_time = next_call_window_start(client.timezone)
+        requested_time = next_call_window_start(client.timezone, call_window=call_window)
 
     original_time = client.scheduled_call_time or datetime.now(timezone.utc)
 
@@ -210,6 +224,7 @@ async def receive_vapi_webhook(request: Request):
             call.vapi_call_id = vapi_call_id
 
         client = db.query(Client).filter(Client.id == call.client_id).first()
+        call_window = get_effective_calling_window(db)
 
         if event_type == "call-started":
             call.status = CallStatus.IN_PROGRESS
@@ -255,7 +270,7 @@ async def receive_vapi_webhook(request: Request):
                     CallStatus.BUSY,
                     CallStatus.FAILED,
                 }:
-                    _schedule_retry(client, call, ended_at)
+                    _schedule_retry(client, call, ended_at, call_window)
 
         elif event_type == "status-update":
             status_value = (payload.get("message") or {}).get("status") or call_block.get("status")
@@ -270,7 +285,7 @@ async def receive_vapi_webhook(request: Request):
                 if client is not None:
                     client.status = ClientStatus.REFUSED
             elif function_name == "book_reschedule" and client is not None:
-                _handle_reschedule(db, client, call, function_call_payload)
+                _handle_reschedule(db, client, call, function_call_payload, call_window)
 
         db.commit()
     finally:
