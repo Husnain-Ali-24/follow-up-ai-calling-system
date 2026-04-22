@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import Papa from 'papaparse';
 import { X, Upload, Check, Settings2, ArrowRight, Zap } from 'lucide-react';
@@ -12,6 +12,7 @@ const DB_FIELDS = [
   { key: 'email',               label: 'Email',              required: false },
   { key: 'follow_up_context',   label: 'Follow-up Context',  required: false },
   { key: 'previous_interaction',label: 'Previous Interaction',required: false },
+  { key: 'scheduled_call_time', label: 'Scheduled Call Time', required: false },
   { key: 'timezone',            label: 'Timezone',           required: false },
   { key: 'notes',               label: 'Notes',              required: false },
 ];
@@ -40,6 +41,11 @@ const FIELD_ALIASES = {
   previous_interaction: [
     'previousinteraction', 'previous interaction', 'lastinteraction',
     'last interaction', 'history', 'previousnote', 'lastnote', 'previouscall',
+  ],
+  scheduled_call_time: [
+    'scheduledcalltime', 'scheduled call time', 'scheduledat', 'scheduled at',
+    'scheduletime', 'schedule time', 'calltime', 'call time',
+    'appointmenttime', 'appointment time', 'followuptime', 'follow up time',
   ],
   timezone: ['timezone', 'time zone', 'tz', 'region'],
   notes: ['notes', 'internalnotes', 'internal notes', 'memo', 'comment', 'comments', 'remark', 'remarks'],
@@ -80,6 +86,81 @@ function estimateRowCount(file, sampleBytes) {
   return est.toLocaleString();
 }
 
+function isValidTimezone(value) {
+  if (!value) return false;
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: value.trim() });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isValidScheduledValue(value) {
+  if (!value) return false;
+  return !Number.isNaN(Date.parse(value));
+}
+
+function getMappedHeader(mappings, fieldKey) {
+  return Object.entries(mappings).find(([, mapped]) => mapped === fieldKey)?.[0] ?? null;
+}
+
+function summarizeScheduling(rows, mappings) {
+  const scheduleHeader = getMappedHeader(mappings, 'scheduled_call_time');
+  const timezoneHeader = getMappedHeader(mappings, 'timezone');
+
+  if (!scheduleHeader) {
+    return {
+      hasScheduleMapping: false,
+      scheduledRows: 0,
+      invalidScheduleRows: 0,
+      missingTimezoneRows: 0,
+      invalidTimezoneRows: 0,
+    };
+  }
+
+  let scheduledRows = 0;
+  let invalidScheduleRows = 0;
+  let missingTimezoneRows = 0;
+  let invalidTimezoneRows = 0;
+
+  rows.forEach((row) => {
+    const scheduledValue = String(row?.[scheduleHeader] ?? '').trim();
+    if (!scheduledValue) return;
+
+    scheduledRows += 1;
+
+    if (!isValidScheduledValue(scheduledValue)) {
+      invalidScheduleRows += 1;
+    }
+
+    const timezoneValue = String(
+      timezoneHeader ? (row?.[timezoneHeader] ?? '') : ''
+    ).trim();
+
+    if (!timezoneValue) {
+      missingTimezoneRows += 1;
+      return;
+    }
+
+    try {
+      if (!isValidTimezone(timezoneValue)) {
+        invalidTimezoneRows += 1;
+      }
+    } catch {
+      invalidTimezoneRows += 1;
+    }
+  });
+
+  return {
+    hasScheduleMapping: true,
+    scheduledRows,
+    invalidScheduleRows,
+    missingTimezoneRows,
+    invalidTimezoneRows,
+  };
+}
+
 export default function ClientImportModal({ open, onOpenChange, onSuccess }) {
   const [step, setStep] = useState(1);
   // Preview rows (first 5) — used to show sample values in the mapping UI
@@ -91,6 +172,10 @@ export default function ClientImportModal({ open, onOpenChange, onSuccess }) {
   const [isImporting, setIsImporting] = useState(false);
   // Keep a reference to the raw File object for deferred full parse
   const fileRef = useRef(null);
+  const previewScheduleSummary = useMemo(
+    () => summarizeScheduling(previewRows, mappings),
+    [previewRows, mappings]
+  );
 
   // ── Step 1 → Step 2: Fast header + preview parse (first 6 rows only) ──────
   const handleFileUpload = (e) => {
@@ -149,6 +234,11 @@ export default function ClientImportModal({ open, onOpenChange, onSuccess }) {
       return;
     }
 
+    if (mappedDbFields.includes('scheduled_call_time') && !mappedDbFields.includes('timezone')) {
+      toast.error('Map a timezone column when using scheduled call time for auto-calling.');
+      return;
+    }
+
     setIsImporting(true);
     try {
       // Full parse happens here — only once, at import time
@@ -162,6 +252,19 @@ export default function ClientImportModal({ open, onOpenChange, onSuccess }) {
       });
 
       setTotalRowCount(fullData.length);
+      const schedulingSummary = summarizeScheduling(fullData, mappings);
+
+      if (schedulingSummary.invalidScheduleRows > 0) {
+        toast.error(`Fix ${schedulingSummary.invalidScheduleRows} row(s) with invalid scheduled call times before import.`);
+        return;
+      }
+
+      if (schedulingSummary.missingTimezoneRows > 0 || schedulingSummary.invalidTimezoneRows > 0) {
+        toast.error(
+          `Fix timezone values before import. Missing: ${schedulingSummary.missingTimezoneRows}, invalid: ${schedulingSummary.invalidTimezoneRows}.`
+        );
+        return;
+      }
 
       const mappedData = fullData.map(row => {
         const client = {};
@@ -185,7 +288,10 @@ export default function ClientImportModal({ open, onOpenChange, onSuccess }) {
       onOpenChange(false);
       resetState();
     } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Import failed');
+      console.error('[Import] Error:', error);
+      const msg = error?.response?.data?.detail;
+      const errorStr = typeof msg === 'string' ? msg : JSON.stringify(msg) || 'Import failed';
+      toast.error(errorStr);
     } finally {
       setIsImporting(false);
     }
@@ -323,7 +429,7 @@ export default function ClientImportModal({ open, onOpenChange, onSuccess }) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   {[
                     { icon: Check, color: 'var(--status-success)', text: 'Include country codes in phone numbers (+1, +44, etc.) for accurate AI calling.' },
-                    { icon: Zap, color: 'var(--accent-primary)', text: 'Smart detection: columns like "Name", "Mobile", "Contact" are auto-mapped — no manual work needed.' },
+                    { icon: Zap, color: 'var(--accent-primary)', text: 'Smart detection: columns like "Name", "Mobile", "Schedule Time", and "Timezone" are auto-mapped when possible.' },
                   ].map(({ icon: Icon, color, text }, i) => (
                     <div key={i} style={{
                       padding: '14px 16px', borderRadius: 'var(--radius-md)',
@@ -339,6 +445,33 @@ export default function ClientImportModal({ open, onOpenChange, onSuccess }) {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {previewScheduleSummary.hasScheduleMapping && (
+                  <div style={{
+                    padding: '14px 16px',
+                    borderRadius: 'var(--radius-md)',
+                    background: previewScheduleSummary.invalidScheduleRows || previewScheduleSummary.missingTimezoneRows || previewScheduleSummary.invalidTimezoneRows
+                      ? 'var(--status-warning-bg)'
+                      : 'var(--status-success-bg)',
+                    border: `1px solid ${
+                      previewScheduleSummary.invalidScheduleRows || previewScheduleSummary.missingTimezoneRows || previewScheduleSummary.invalidTimezoneRows
+                        ? 'var(--status-warning)'
+                        : 'var(--status-success)'
+                    }`,
+                  }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
+                      Scheduling preview
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                      {previewScheduleSummary.scheduledRows > 0
+                        ? `${previewScheduleSummary.scheduledRows} preview row(s) include scheduled call times.`
+                        : 'A schedule column is mapped, but the preview rows are empty for it.'}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.6 }}>
+                      Invalid times: {previewScheduleSummary.invalidScheduleRows} · Missing timezones: {previewScheduleSummary.missingTimezoneRows} · Invalid timezones: {previewScheduleSummary.invalidTimezoneRows}
+                    </div>
+                  </div>
+                )}
+
                 {/* Column header */}
                 <div style={{
                   display: 'grid', gridTemplateColumns: '1fr 40px 1fr',
@@ -442,6 +575,14 @@ export default function ClientImportModal({ open, onOpenChange, onSuccess }) {
                     {Object.values(mappings).filter(m => m === 'custom').length}
                   </span>
                   {' custom'}
+                  {previewScheduleSummary.hasScheduleMapping && (
+                    <>
+                      {' · '}
+                      <span style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>
+                        schedule enabled
+                      </span>
+                    </>
+                  )}
                 </>
               )}
             </p>

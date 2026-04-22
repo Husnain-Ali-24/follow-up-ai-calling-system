@@ -14,6 +14,7 @@ const schema = z.object({
   phone_number: z.string().min(10, 'Invalid phone number'),
   email: z.string().email('Invalid email').optional().or(z.literal('')),
   follow_up_context: z.string().min(3, 'Context is required'),
+  scheduled_call_time: z.string().optional().or(z.literal('')),
   timezone: z.string().default('UTC'),
   notes: z.string().optional().or(z.literal('')),
   custom_fields: z.array(z.object({
@@ -36,6 +37,19 @@ const getAvatarStyle = (n) => {
   return { background: `linear-gradient(135deg, ${a}, ${b})` };
 };
 
+const toDateTimeLocalInputValue = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 export default function ClientDrawer({ client, onClose, onRefresh }) {
   const [tab, setTab] = useState('details');
   const [isSaving, setIsSaving] = useState(false);
@@ -54,6 +68,7 @@ export default function ClientDrawer({ client, onClose, onRefresh }) {
     resolver: zodResolver(schema),
     defaultValues: {
       ...client,
+      scheduled_call_time: toDateTimeLocalInputValue(client?.scheduled_call_time),
       custom_fields: formCustomFields,
     },
   });
@@ -65,6 +80,7 @@ export default function ClientDrawer({ client, onClose, onRefresh }) {
     if (client) {
       reset({
         ...client,
+        scheduled_call_time: toDateTimeLocalInputValue(client.scheduled_call_time),
         custom_fields: Object.entries(client.custom_fields || {}).map(([key, value]) => ({
           key,
           value: String(value)
@@ -107,6 +123,9 @@ export default function ClientDrawer({ client, onClose, onRefresh }) {
       if (values.phone_number !== client.phone_number) payload.phone_number = values.phone_number;
       if (values.email !== client.email) payload.email = values.email || null;
       if (values.follow_up_context !== client.follow_up_context) payload.follow_up_context = values.follow_up_context;
+      if ((values.scheduled_call_time || '') !== toDateTimeLocalInputValue(client.scheduled_call_time)) {
+        payload.scheduled_call_time = values.scheduled_call_time || null;
+      }
       if (values.timezone !== client.timezone) payload.timezone = values.timezone;
       if (values.notes !== client.notes) payload.notes = values.notes || null;
       
@@ -213,6 +232,7 @@ export default function ClientDrawer({ client, onClose, onRefresh }) {
                 <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--accent-primary)', marginBottom: 12, letterSpacing: '0.1em' }}>Basic Information</h4>
                 <InfoRow icon={Mail} label="Email Address" value={client.email} />
                 <InfoRow icon={Globe} label="Timezone" value={client.timezone} />
+                <InfoRow icon={Calendar} label="Scheduled Call" value={client.scheduled_call_time ? new Date(client.scheduled_call_time).toLocaleString() : 'Not scheduled'} />
                 <InfoRow icon={Clock} label="Date Added" value={new Date(client.created_at).toLocaleDateString()} />
               </div>
 
@@ -273,9 +293,16 @@ export default function ClientDrawer({ client, onClose, onRefresh }) {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                   <div>
-                    <label className="input-label">Timezone</label>
+                    <label className="input-label"><Calendar size={12} /> Scheduled Call</label>
+                    <input {...register('scheduled_call_time')} type="datetime-local" className="premium-input" />
+                  </div>
+                  <div>
+                    <label className="input-label"><Globe size={12} /> Timezone</label>
                     <input {...register('timezone')} className="premium-input" />
                   </div>
+                </div>
+
+                <div style={{ marginBottom: 20 }}>
                   <div>
                     <label className="input-label">Notes</label>
                     <input {...register('notes')} className="premium-input" />

@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import asyncio
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -8,8 +9,9 @@ from fastapi.responses import FileResponse
 from app.core.config import settings
 from app.database.base import Base
 from app.database.session import engine
-from app.models import User  # noqa: F401
-from app.routes import auth, health, client
+from app.models import Call, Client, Reschedule, User  # noqa: F401
+from app.routes import auth, health, client, webhooks
+from app.services.call_scheduler import run_scheduler_loop, shutdown_scheduler
 from app.seed import seed_default_admin
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -20,7 +22,14 @@ INDEX_FILE = STATIC_DIR / "index.html"
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)
     seed_default_admin()
-    yield
+    scheduler_task = None
+    if settings.scheduler_enabled:
+        scheduler_task = asyncio.create_task(run_scheduler_loop())
+
+    try:
+        yield
+    finally:
+        await shutdown_scheduler(scheduler_task)
 
 
 app = FastAPI(
@@ -40,6 +49,7 @@ app.add_middleware(
 app.include_router(health.router, prefix=settings.api_v1_prefix)
 app.include_router(auth.router, prefix=settings.api_v1_prefix)
 app.include_router(client.router, prefix=settings.api_v1_prefix)
+app.include_router(webhooks.router, prefix=settings.api_v1_prefix)
 
 
 @app.get("/", include_in_schema=False)

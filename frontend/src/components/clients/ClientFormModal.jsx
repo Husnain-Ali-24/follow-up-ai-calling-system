@@ -13,6 +13,7 @@ const clientSchema = z.object({
   email: z.string().email('Invalid email address').optional().or(z.literal('')),
   follow_up_context: z.string().min(5, 'Context must be at least 5 characters'),
   previous_interaction: z.string().optional().or(z.literal('')),
+  scheduled_call_time: z.string().optional().or(z.literal('')),
   timezone: z.string().default('UTC'),
   notes: z.string().optional().or(z.literal('')),
   custom_fields: z.array(z.object({
@@ -33,6 +34,19 @@ function FormSection({ title, color = 'var(--accent-primary)', children }) {
       {children}
     </div>
   );
+}
+
+function toDateTimeLocalInputValue(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
 function Field({ label, icon: Icon, required, error, children }) {
@@ -124,6 +138,7 @@ export default function ClientFormModal({ open, onOpenChange, onSuccess, client 
     resolver: zodResolver(clientSchema),
     defaultValues: client ? {
       ...client,
+      scheduled_call_time: toDateTimeLocalInputValue(client.scheduled_call_time),
       custom_fields: initialCustomFields,
     } : {
       full_name: '',
@@ -131,6 +146,7 @@ export default function ClientFormModal({ open, onOpenChange, onSuccess, client 
       email: '',
       follow_up_context: '',
       previous_interaction: '',
+      scheduled_call_time: '',
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
       notes: '',
       custom_fields: [],
@@ -146,7 +162,11 @@ export default function ClientFormModal({ open, onOpenChange, onSuccess, client 
         if (f.key && f.value) customFieldsObj[f.key] = f.value;
       });
 
-      const payload = { ...formData, custom_fields: customFieldsObj };
+      const payload = {
+        ...formData,
+        scheduled_call_time: formData.scheduled_call_time || null,
+        custom_fields: customFieldsObj,
+      };
 
       if (isEdit) {
         await clientService.updateClient(client.id, payload);
@@ -257,9 +277,14 @@ export default function ClientFormModal({ open, onOpenChange, onSuccess, client 
                 />
               </Field>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <Field label="Scheduled Call Time">
+                  <StyledInput {...register('scheduled_call_time')} type="datetime-local" />
+                </Field>
                 <Field label="Timezone" icon={Globe}>
                   <StyledInput {...register('timezone')} placeholder="UTC" />
                 </Field>
+              </div>
+              <div style={{ marginTop: '16px' }}>
                 <Field label="Internal Notes">
                   <StyledInput {...register('notes')} placeholder="Admin-only memo..." />
                 </Field>

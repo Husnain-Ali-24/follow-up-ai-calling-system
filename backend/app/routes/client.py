@@ -1,6 +1,6 @@
 from typing import Annotated, List, Any
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 import csv
 import io
@@ -15,7 +15,8 @@ from app.interactors.client import (
     create_client,
     update_client,
     delete_client,
-    get_client_by_phone
+    get_client_by_phone,
+    get_client_by_phone_excluding_id,
 )
 
 router = APIRouter(prefix="/clients", tags=["clients"])
@@ -55,10 +56,17 @@ def import_clients(
     
     imported = 0
     errors = []
+    seen_phone_numbers: set[str] = set()
     
     for row in csv_reader:
         phone = row.get('phone_number') or row.get('phone')
         name = row.get('full_name') or row.get('name')
+        scheduled_call_time = (
+            row.get('scheduled_call_time')
+            or row.get('scheduled_at')
+            or row.get('schedule_time')
+            or row.get('call_time')
+        )
         
         if not phone or not name:
             errors.append({"row": row, "error": "Missing phone or name"})
@@ -67,26 +75,40 @@ def import_clients(
         context = row.get('follow_up_context') or "Imported via CSV"
         
         # Collect custom fields
-        standard_fields = ['phone_number', 'phone', 'full_name', 'name', 'email', 'follow_up_context', 'previous_interaction', 'timezone', 'notes']
+        standard_fields = [
+            'phone_number', 'phone', 'full_name', 'name', 'email',
+            'follow_up_context', 'previous_interaction', 'scheduled_call_time',
+            'scheduled_at', 'schedule_time', 'call_time', 'timezone', 'notes'
+        ]
         custom_fields = {k: v for k, v in row.items() if k not in standard_fields and v}
         
-        client_in = ClientCreate(
-            full_name=name,
-            phone_number=phone,
-            email=row.get('email'),
-            follow_up_context=context,
-            previous_interaction=row.get('previous_interaction'),
-            timezone=row.get('timezone') or "UTC",
-            notes=row.get('notes'),
-            custom_fields=custom_fields
-        )
+        try:
+            client_in = ClientCreate(
+                full_name=name,
+                phone_number=phone,
+                email=row.get('email'),
+                follow_up_context=context,
+                previous_interaction=row.get('previous_interaction'),
+                scheduled_call_time=scheduled_call_time,
+                timezone=row.get('timezone') or "UTC",
+                notes=row.get('notes'),
+                custom_fields=custom_fields
+            )
+        except Exception as exc:
+            errors.append({"row": row, "error": str(exc)})
+            continue
+
+        if client_in.phone_number in seen_phone_numbers:
+            errors.append({"row": row, "error": "Phone already exists in this import file"})
+            continue
+        seen_phone_numbers.add(client_in.phone_number)
         
-        db_client = get_client_by_phone(db, phone)
+        db_client = get_client_by_phone(db, client_in.phone_number)
         if not db_client:
             create_client(db, client_in)
             imported += 1
         else:
-            errors.append({"row": row, "error": "Phone already exists"})
+            errors.append({"row": row, "error": f"Phone {client_in.phone_number} already exists"})
             
     return {"message": f"Imported {imported} clients", "errors": errors}
 
@@ -98,8 +120,14 @@ def bulk_create_clients(
 ):
     imported = 0
     errors = []
+    seen_phone_numbers: set[str] = set()
     
     for idx, client in enumerate(clients):
+        if client.phone_number in seen_phone_numbers:
+            errors.append({"row": idx, "error": f"Phone {client.phone_number} is duplicated in this import payload"})
+            continue
+        seen_phone_numbers.add(client.phone_number)
+
         db_client = get_client_by_phone(db, client.phone_number)
         if not db_client:
             create_client(db, client)
@@ -127,6 +155,11 @@ def update_existing_client(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_authenticated_user)
 ):
+    if client.phone_number is not None:
+        db_client = get_client_by_phone_excluding_id(db, client.phone_number, client_id)
+        if db_client:
+            raise HTTPException(status_code=400, detail="Phone number already registered")
+
     db_client = update_client(db, client_id, client)
     if db_client is None:
         raise HTTPException(status_code=404, detail="Client not found")
