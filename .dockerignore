@@ -2,6 +2,9 @@
 .codex
 frontend/node_modules
 frontend/dist
+db_data
+backend/data
+docs
 backend/__pycache__
 backend/app/__pycache__
 backend/app/static
