@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -154,7 +155,7 @@ export default function ClientDrawer({ client, onClose, onRefresh }) {
     }
   };
 
-  return (
+  return createPortal(
     <>
       <div onClick={onClose} style={{
         position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 9998,
@@ -366,7 +367,8 @@ export default function ClientDrawer({ client, onClose, onRefresh }) {
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 10px; }
       `}</style>
-    </>
+    </>,
+    document.body
   );
 }
 
