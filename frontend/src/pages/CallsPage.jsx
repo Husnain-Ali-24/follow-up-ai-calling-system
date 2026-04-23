@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import PageHeader from '../components/shared/PageHeader';
 import DataTable from '../components/shared/DataTable';
 import callService from '../services/callService';
@@ -33,6 +34,48 @@ export default function CallsPage() {
   useEffect(() => {
     fetchCalls();
   }, [search]);
+
+  const handleExportCsv = () => {
+    if (!calls.length) {
+      toast.error('No call rows available to export.');
+      return;
+    }
+
+    const headers = [
+      'call_id',
+      'client_name',
+      'client_phone',
+      'status',
+      'sentiment',
+      'duration_seconds',
+      'started_at',
+      'ended_at',
+      'attempt_number',
+      'vapi_call_id',
+    ];
+
+    const escapeCell = (value) => {
+      const str = String(value ?? '');
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const rows = calls.map((call) => headers.map((header) => escapeCell(call[header])).join(','));
+    const csvContent = [headers.join(','), ...rows].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = 'call-logs.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(downloadUrl);
+    toast.success('Call logs exported as CSV.');
+  };
 
   const columns = [
     {
@@ -119,7 +162,7 @@ export default function CallsPage() {
         title="Call Logs" 
         subtitle="Review individual AI call transcripts, summaries, and sentiment analysis."
         actions={
-          <button className="btn-secondary flex items-center space-x-2 text-sm">
+          <button onClick={handleExportCsv} className="btn-secondary flex items-center space-x-2 text-sm">
             <Download size={16} />
             <span>Export CSV</span>
           </button>

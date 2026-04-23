@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import PageHeader from '../components/shared/PageHeader';
 import callService from '../services/callService';
 import TranscriptViewer from '../components/calls/TranscriptViewer';
@@ -31,7 +32,10 @@ export default function CallDetailPage() {
   }, [id]);
 
   const handleDownloadTranscript = () => {
-    if (!call?.transcript) return;
+    if (!call?.transcript) {
+      toast.error('No transcript is available for this call.');
+      return;
+    }
 
     const transcriptBlob = new Blob([call.transcript], { type: 'text/plain;charset=utf-8' });
     const downloadUrl = URL.createObjectURL(transcriptBlob);
@@ -42,14 +46,16 @@ export default function CallDetailPage() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(downloadUrl);
+    toast.success('Transcript downloaded.');
   };
 
   const handleShare = async () => {
     const shareText = [
       `Call with ${call.client_name}`,
       `Status: ${call.status}`,
-      `Sentiment: ${call.sentiment || 'neutral'}`,
+      `Sentiment: ${call.sentiment || '—'}`,
       call.summary ? `Summary: ${call.summary}` : null,
+      call.transcript ? `Transcript:\n${call.transcript}` : null,
     ].filter(Boolean).join('\n');
 
     if (navigator.share) {
@@ -58,13 +64,21 @@ export default function CallDetailPage() {
           title: `Call with ${call.client_name}`,
           text: shareText,
         });
+        toast.success('Call details shared.');
         return;
-      } catch {
-        // Fall back to clipboard below if sharing is canceled or unavailable.
+      } catch (error) {
+        if (error?.name === 'AbortError') {
+          return;
+        }
       }
     }
 
-    await navigator.clipboard.writeText(shareText);
+    try {
+      await navigator.clipboard.writeText(shareText);
+      toast.success('Call details copied to clipboard.');
+    } catch {
+      toast.error('Sharing failed on this browser.');
+    }
   };
 
   if (loading) return <div className="text-text-muted">Loading call details...</div>;
@@ -103,8 +117,8 @@ export default function CallDetailPage() {
           <div className="bg-background-card border border-border rounded-xl overflow-hidden flex flex-col h-[600px]">
             <div className="p-6 border-b border-border flex items-center justify-between bg-background-secondary/30">
               <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted">Call Transcript</h3>
-              <div className="flex space-y-0 space-x-2">
-                 <span className="text-xs bg-status-success-bg text-status-success px-2 py-0.5 rounded-full font-medium">98% Accuracy</span>
+              <div className="text-xs text-text-muted">
+                {call.transcript ? `${call.transcript.split('\n').filter(Boolean).length} lines` : 'No transcript'}
               </div>
             </div>
             <TranscriptViewer transcript={call.transcript} />
