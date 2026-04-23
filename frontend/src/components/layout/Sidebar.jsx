@@ -34,7 +34,7 @@ export default function Sidebar() {
         isSidebarOpen ? "w-64" : "w-20"
       )}
     >
-      <div className="p-6 flex items-center justify-between">
+      <div className="p-4 flex items-center justify-between">
         <div className={cn("font-bold text-accent-primary truncate", !isSidebarOpen && "hidden")}>
           AI CALLER
         </div>
@@ -46,7 +46,7 @@ export default function Sidebar() {
         </button>
       </div>
 
-      <nav className="flex-1 px-3 space-y-1 mt-4">
+      <nav className="flex-1 px-3 space-y-1 mt-2">
         {navItems.map((item) => (
           <NavLink
             key={item.path}

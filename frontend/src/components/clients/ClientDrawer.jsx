@@ -170,8 +170,8 @@ export default function ClientDrawer({ client, onClose, onRefresh }) {
       }}>
         
         {/* Header Section */}
-        <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-default)', padding: '24px 24px 16px', flexShrink: 0 }}>
-          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', marginBottom: 20 }}>
+        <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-default)', padding: '16px 20px 12px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
             <div style={{
               width: 54, height: 54, borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: '#fff', fontSize: 22, fontWeight: 800, ...getAvatarStyle(client.full_name)
@@ -199,7 +199,7 @@ export default function ClientDrawer({ client, onClose, onRefresh }) {
               onClick={handleTriggerCall}
               disabled={isCalling}
               style={{
-                flex: 1, height: 40, borderRadius: '10px', background: 'var(--accent-primary)', color: '#fff',
+                flex: 1, height: 36, borderRadius: '8px', background: 'var(--accent-primary)', color: '#fff',
                 border: 'none', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 cursor: 'pointer', boxShadow: '0 4px 12px var(--accent-glow)', opacity: isCalling ? 0.7 : 1
               }}
@@ -209,7 +209,7 @@ export default function ClientDrawer({ client, onClose, onRefresh }) {
             <button 
               onClick={() => setTab(tab === 'edit' ? 'details' : 'edit')}
               style={{
-                padding: '0 16px', height: 40, borderRadius: '10px', background: 'var(--bg-secondary)',
+                padding: '0 12px', height: 36, borderRadius: '8px', background: 'var(--bg-secondary)',
                 border: '1px solid var(--border-default)', color: 'var(--text-primary)', fontWeight: 600, fontSize: 13,
                 display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer'
               }}
