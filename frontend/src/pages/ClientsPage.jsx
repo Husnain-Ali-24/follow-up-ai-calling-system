@@ -32,8 +32,8 @@ export default function ClientsPage() {
   // Drawer state — which client's detail panel is open
   const [drawerClient, setDrawerClient] = useState(null);
 
-  const fetchClients = async () => {
-    setLoading(true);
+  const fetchClients = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const result = await clientService.getClients({ search });
       setClients(result.data);
@@ -44,13 +44,13 @@ export default function ClientsPage() {
     } catch (error) {
       toast.error('Failed to load clients');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useNotifications((message) => {
     if (message.type === 'status_update') {
-      fetchClients();
+      fetchClients(true); // Pass true for a silent update
     }
   });
 

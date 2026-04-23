@@ -15,19 +15,19 @@ export default function CallsPage() {
   const [search, setSearch] = useState('');
   const navigate = useNavigate();
 
-  const fetchCalls = async () => {
-    setLoading(true);
+  const fetchCalls = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const result = await callService.getCalls({ search });
       setCalls(result.data);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useNotifications((message) => {
     if (message.type === 'status_update') {
-      fetchCalls();
+      fetchCalls(true);
     }
   });
 
