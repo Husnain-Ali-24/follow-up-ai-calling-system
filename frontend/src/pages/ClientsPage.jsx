@@ -18,6 +18,7 @@ import { cn } from '../lib/utils';
 import ClientFormModal from '../components/clients/ClientFormModal';
 import ClientImportModal from '../components/clients/ClientImportModal';
 import ClientDrawer from '../components/clients/ClientDrawer';
+import { useNotifications } from '../hooks/useNotifications';
 import { toast } from 'sonner';
 
 export default function ClientsPage() {
@@ -46,6 +47,12 @@ export default function ClientsPage() {
       setLoading(false);
     }
   };
+
+  useNotifications((message) => {
+    if (message.type === 'status_update') {
+      fetchClients();
+    }
+  });
 
   useEffect(() => {
     const timer = setTimeout(fetchClients, 300);

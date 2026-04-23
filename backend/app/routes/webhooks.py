@@ -18,6 +18,7 @@ from app.services.calling_window import (
     get_effective_calling_window,
     next_call_window_start,
 )
+from app.services.notifier import notifier
 from app.services.webhook_verifier import verify_vapi_request
 
 
@@ -336,6 +337,14 @@ async def receive_vapi_webhook(request: Request):
                 _handle_reschedule(db, client, call, function_call_payload, call_window)
 
         db.commit()
+        await notifier.publish({
+            "type": "status_update",
+            "client_id": str(client.id) if client else None,
+            "call_id": str(call.id) if call else None,
+            "event_type": event_type,
+            "client_status": client.status if client else None,
+            "call_status": call.status if call else None,
+        })
         logger.info(
             "Vapi webhook processed: event_type=%s call_id=%s final_call_status=%s final_client_status=%s",
             event_type,

@@ -17,6 +17,7 @@ from app.services.calling_window import (
     is_within_calling_window,
     next_call_window_start,
 )
+from app.services.notifier import notifier
 from app.services.vapi_client import VapiConfigurationError, start_outbound_call
 
 
@@ -189,6 +190,14 @@ async def trigger_client_call(client_id: str) -> bool:
         if client is not None:
             client.status = ClientStatus.QUEUED
         db.commit()
+        await notifier.publish({
+            "type": "status_update",
+            "client_id": str(client.id),
+            "call_id": str(call.id),
+            "event_type": "call_triggered",
+            "client_status": client.status,
+            "call_status": call.status,
+        })
         return True
 
     except VapiConfigurationError:
