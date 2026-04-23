@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import logging
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -20,6 +22,7 @@ from app.services.webhook_verifier import verify_vapi_request
 
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
+logger = logging.getLogger(__name__)
 
 
 def _extract_event_type(payload: dict) -> str | None:
@@ -213,11 +216,27 @@ async def receive_vapi_webhook(request: Request):
     event_type = _extract_event_type(payload)
     vapi_call_id = _extract_vapi_call_id(payload)
     call_block = _extract_call_block(payload)
+    customer_number = _extract_customer_number(payload)
+
+    logger.info(
+        "Vapi webhook received: event_type=%s vapi_call_id=%s customer_number=%s payload=%s",
+        event_type,
+        vapi_call_id,
+        customer_number,
+        json.dumps(payload, default=str)[:4000],
+    )
 
     db = SessionLocal()
     try:
         call = _find_or_create_call(db, payload)
         if call is None:
+            logger.warning(
+                "Vapi webhook ignored because no matching call/client was found: "
+                "event_type=%s vapi_call_id=%s customer_number=%s",
+                event_type,
+                vapi_call_id,
+                customer_number,
+            )
             return {"received": True, "ignored": "call not matched"}
 
         if vapi_call_id and not call.vapi_call_id:
@@ -225,6 +244,16 @@ async def receive_vapi_webhook(request: Request):
 
         client = db.query(Client).filter(Client.id == call.client_id).first()
         call_window = get_effective_calling_window(db)
+
+        logger.info(
+            "Processing Vapi webhook: event_type=%s call_id=%s client_id=%s current_call_status=%s "
+            "current_client_status=%s",
+            event_type,
+            call.id,
+            call.client_id,
+            call.status,
+            client.status if client is not None else None,
+        )
 
         if event_type == "call-started":
             call.status = CallStatus.IN_PROGRESS
@@ -274,12 +303,23 @@ async def receive_vapi_webhook(request: Request):
 
         elif event_type == "status-update":
             status_value = (payload.get("message") or {}).get("status") or call_block.get("status")
+            logger.info(
+                "Vapi status-update received: vapi_call_id=%s status_value=%s",
+                vapi_call_id,
+                status_value,
+            )
             if status_value == "in-progress":
                 call.status = CallStatus.IN_PROGRESS
 
         elif event_type == "function-call":
             function_call_payload = ((payload.get("message") or {}).get("functionCall") or {})
             function_name = function_call_payload.get("name")
+            logger.info(
+                "Vapi function-call received: vapi_call_id=%s function_name=%s parameters=%s",
+                vapi_call_id,
+                function_name,
+                json.dumps(function_call_payload.get("parameters") or {}, default=str)[:2000],
+            )
             if function_name == "mark_refused":
                 call.status = CallStatus.REFUSED
                 if client is not None:
@@ -288,6 +328,13 @@ async def receive_vapi_webhook(request: Request):
                 _handle_reschedule(db, client, call, function_call_payload, call_window)
 
         db.commit()
+        logger.info(
+            "Vapi webhook processed: event_type=%s call_id=%s final_call_status=%s final_client_status=%s",
+            event_type,
+            call.id,
+            call.status,
+            client.status if client is not None else None,
+        )
     finally:
         db.close()
 
