@@ -12,6 +12,9 @@ export default function DataTable({
   columns, 
   data, 
   loading, 
+  pagination,
+  onPaginationChange,
+  manualPagination = false,
   rowSelection = {}, 
   onRowSelectionChange = () => {},
   getRowId,
@@ -21,8 +24,12 @@ export default function DataTable({
     data,
     columns,
     state: {
+      pagination,
       rowSelection,
     },
+    manualPagination,
+    pageCount: manualPagination && pagination ? Math.max(pagination.pageCount, 1) : undefined,
+    onPaginationChange,
     onRowSelectionChange,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -112,7 +119,7 @@ export default function DataTable({
               {table.getFilteredSelectedRowModel().rows.length} of {table.getFilteredRowModel().rows.length} row(s) selected
             </span>
           ) : (
-            `Page ${table.getState().pagination.pageIndex + 1} of ${table.getPageCount()}`
+            `Page ${table.getState().pagination.pageIndex + 1} of ${Math.max(table.getPageCount(), 1)}`
           )}
         </div>
         <div className="flex items-center space-x-2">

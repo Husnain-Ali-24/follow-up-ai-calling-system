@@ -56,3 +56,11 @@ class CallEventResponse(BaseModel):
     type: str
     timestamp: datetime
     description: str
+
+
+class CallListResponse(BaseModel):
+    items: list[CallListItem]
+    total: int
+    page: int
+    per_page: int
+    pages: int

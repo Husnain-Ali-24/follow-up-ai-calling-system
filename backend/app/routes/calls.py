@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from math import ceil
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,7 +12,7 @@ from app.models.call import Call, CallStatus
 from app.models.client import Client
 from app.models.user import User
 from app.routes.auth import get_authenticated_user
-from app.schemas.call import CallDetailResponse, CallEventResponse, CallListItem
+from app.schemas.call import CallDetailResponse, CallEventResponse, CallListItem, CallListResponse
 
 
 router = APIRouter(prefix="/calls", tags=["calls"])
@@ -111,13 +112,17 @@ def _build_call_events(call: Call, client: Client | None) -> list[CallEventRespo
     return events
 
 
-@router.get("/", response_model=list[CallListItem])
+@router.get("/", response_model=CallListResponse)
 def list_calls(
     search: str | None = None,
+    page: int = 1,
+    per_page: int = 25,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_authenticated_user),
 ):
     del current_user
+    resolved_page = max(page, 1)
+    resolved_per_page = min(max(per_page, 1), 100)
 
     query = db.query(Call, Client).outerjoin(Client, Client.id == Call.client_id)
     if search:
@@ -129,11 +134,21 @@ def list_calls(
             )
         )
 
+    total = query.count()
+    pages = ceil(total / resolved_per_page) if total else 0
     results = (
         query.order_by(Call.started_at.desc().nullslast(), Call.created_at.desc())
+        .offset((resolved_page - 1) * resolved_per_page)
+        .limit(resolved_per_page)
         .all()
     )
-    return [_build_call_item(call, client) for call, client in results]
+    return {
+        "items": [_build_call_item(call, client) for call, client in results],
+        "total": total,
+        "page": resolved_page,
+        "per_page": resolved_per_page,
+        "pages": pages,
+    }
 
 
 @router.get("/{call_id}", response_model=CallDetailResponse)

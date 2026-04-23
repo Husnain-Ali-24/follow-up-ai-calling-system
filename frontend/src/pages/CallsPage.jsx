@@ -11,15 +11,25 @@ import { useNotifications } from '../hooks/useNotifications';
 
 export default function CallsPage() {
   const [calls, setCalls] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [pagination, setPagination] = useState({
+    pageIndex: 0,
+    pageSize: 10,
+  });
   const navigate = useNavigate();
 
   const fetchCalls = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const result = await callService.getCalls({ search });
+      const result = await callService.getCalls({
+        search,
+        page: pagination.pageIndex + 1,
+        per_page: pagination.pageSize,
+      });
       setCalls(result.data);
+      setTotal(result.total);
     } finally {
       if (!silent) setLoading(false);
     }
@@ -33,6 +43,12 @@ export default function CallsPage() {
 
   useEffect(() => {
     fetchCalls();
+  }, [search, pagination.pageIndex, pagination.pageSize]);
+
+  useEffect(() => {
+    setPagination((current) => (
+      current.pageIndex === 0 ? current : { ...current, pageIndex: 0 }
+    ));
   }, [search]);
 
   const handleExportCsv = () => {
@@ -186,6 +202,18 @@ export default function CallsPage() {
         columns={columns} 
         data={calls} 
         loading={loading} 
+        manualPagination
+        pagination={{
+          pageIndex: pagination.pageIndex,
+          pageSize: pagination.pageSize,
+          pageCount: Math.ceil(total / pagination.pageSize),
+        }}
+        onPaginationChange={(updater) => {
+          setPagination((current) => {
+            const next = typeof updater === 'function' ? updater(current) : updater;
+            return next;
+          });
+        }}
       />
     </div>
   );

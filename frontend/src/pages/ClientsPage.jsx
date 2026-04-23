@@ -23,8 +23,13 @@ import { toast } from 'sonner';
 
 export default function ClientsPage() {
   const [clients, setClients] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [pagination, setPagination] = useState({
+    pageIndex: 0,
+    pageSize: 10,
+  });
   const [rowSelection, setRowSelection] = useState({});
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -35,8 +40,13 @@ export default function ClientsPage() {
   const fetchClients = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const result = await clientService.getClients({ search });
+      const result = await clientService.getClients({
+        search,
+        page: pagination.pageIndex + 1,
+        per_page: pagination.pageSize,
+      });
       setClients(result.data);
+      setTotal(result.total);
       // Keep open drawer in sync with fresh data
       setDrawerClient(prev =>
         prev ? (result.data.find(c => c.id === prev.id) ?? prev) : null
@@ -57,6 +67,12 @@ export default function ClientsPage() {
   useEffect(() => {
     const timer = setTimeout(fetchClients, 300);
     return () => clearTimeout(timer);
+  }, [search, pagination.pageIndex, pagination.pageSize]);
+
+  useEffect(() => {
+    setPagination((current) => (
+      current.pageIndex === 0 ? current : { ...current, pageIndex: 0 }
+    ));
   }, [search]);
 
   const selectedRows = useMemo(() => {
@@ -244,6 +260,18 @@ export default function ClientsPage() {
         columns={columns} 
         data={clients} 
         loading={loading}
+        manualPagination
+        pagination={{
+          pageIndex: pagination.pageIndex,
+          pageSize: pagination.pageSize,
+          pageCount: Math.ceil(total / pagination.pageSize),
+        }}
+        onPaginationChange={(updater) => {
+          setPagination((current) => {
+            const next = typeof updater === 'function' ? updater(current) : updater;
+            return next;
+          });
+        }}
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
         getRowId={(row) => row.id}
@@ -282,4 +310,3 @@ export default function ClientsPage() {
     </div>
   );
 }
-

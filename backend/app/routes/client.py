@@ -8,9 +8,10 @@ import io
 from app.database.dependencies import get_db
 from app.models.user import User
 from app.routes.auth import get_authenticated_user
-from app.schemas.client import ClientCreate, ClientResponse, ClientUpdate
+from app.schemas.client import ClientCreate, ClientListResponse, ClientResponse, ClientUpdate
 from app.interactors.client import (
     get_clients,
+    get_clients_page,
     get_client,
     create_client,
     update_client,
@@ -21,15 +22,40 @@ from app.interactors.client import (
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 
-@router.get("/", response_model=List[ClientResponse])
+@router.get("/", response_model=ClientListResponse)
 def read_clients(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 25,
+    page: int | None = None,
+    per_page: int | None = None,
     search: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_authenticated_user)
 ):
-    return get_clients(db, skip=skip, limit=limit, search=search)
+    del current_user
+
+    if page is not None or per_page is not None:
+        resolved_page = max(page or 1, 1)
+        resolved_per_page = min(max(per_page or limit, 1), 100)
+        return get_clients_page(
+            db,
+            page=resolved_page,
+            per_page=resolved_per_page,
+            search=search,
+        )
+
+    resolved_limit = min(max(limit, 1), 100)
+    items = get_clients(db, skip=skip, limit=resolved_limit, search=search)
+    total = get_clients_page(db, page=1, per_page=1, search=search)["total"]
+    current_page = (skip // resolved_limit) + 1
+    pages = (total + resolved_limit - 1) // resolved_limit if total else 0
+    return {
+        "items": items,
+        "total": total,
+        "page": current_page,
+        "per_page": resolved_limit,
+        "pages": pages,
+    }
 
 @router.post("/", response_model=ClientResponse, status_code=status.HTTP_201_CREATED)
 def create_new_client(

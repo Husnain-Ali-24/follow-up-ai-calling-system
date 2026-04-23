@@ -4,23 +4,18 @@ const callService = {
   getCalls: async (filters) => {
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
+    if (filters?.page) params.append('page', filters.page);
+    if (filters?.per_page) params.append('per_page', filters.per_page);
 
     const response = await api.get(`/calls/?${params.toString()}`);
-    let filtered = response.data;
-
-    if (filters?.status && filters.status !== 'all') {
-      filtered = filtered.filter(c => c.status === filters.status);
-    }
-
-    if (filters?.sentiment && filters.sentiment !== 'all') {
-      filtered = filtered.filter(c => c.sentiment === filters.sentiment);
-    }
+    const filtered = response.data.items;
 
     return {
       data: filtered,
-      total: filtered.length,
-      page: filters?.page || 1,
-      per_page: filters?.per_page || 10
+      total: response.data.total,
+      page: response.data.page,
+      per_page: response.data.per_page,
+      pages: response.data.pages,
     };
   },
   

@@ -102,3 +102,11 @@ class ClientResponse(ClientBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ClientListResponse(BaseModel):
+    items: List[ClientResponse]
+    total: int
+    page: int
+    per_page: int
+    pages: int

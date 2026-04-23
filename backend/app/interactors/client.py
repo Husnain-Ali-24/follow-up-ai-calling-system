@@ -1,4 +1,5 @@
 from uuid import UUID
+from math import ceil
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
@@ -20,6 +21,42 @@ def get_clients(db: Session, skip: int = 0, limit: int = 100, search: Optional[s
             )
         )
     return query.order_by(Client.created_at.desc()).offset(skip).limit(limit).all()
+
+
+def get_clients_page(
+    db: Session,
+    *,
+    page: int = 1,
+    per_page: int = 25,
+    search: Optional[str] = None,
+) -> dict:
+    query = db.query(Client)
+    if search:
+        query = query.filter(
+            or_(
+                Client.full_name.ilike(f"%{search}%"),
+                Client.phone_number.ilike(f"%{search}%"),
+                Client.email.ilike(f"%{search}%")
+            )
+        )
+
+    total = query.count()
+    pages = ceil(total / per_page) if total else 0
+    items = (
+        query
+        .order_by(Client.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "pages": pages,
+    }
 
 def get_client(db: Session, client_id: UUID) -> Optional[Client]:
     return db.query(Client).filter(Client.id == client_id).first()
