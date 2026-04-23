@@ -171,11 +171,11 @@ export default function ClientDrawer({ client, onClose, onRefresh }) {
       }}>
         
         {/* Header Section */}
-        <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-default)', padding: '16px 20px 12px', flexShrink: 0 }}>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
+        <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-default)', padding: '14px 20px 10px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 10 }}>
             <div style={{
-              width: 54, height: 54, borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#fff', fontSize: 22, fontWeight: 800, ...getAvatarStyle(client.full_name)
+              width: 50, height: 50, borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#fff', fontSize: 21, fontWeight: 800, ...getAvatarStyle(client.full_name)
             }}>
               {client.full_name.charAt(0).toUpperCase()}
             </div>
@@ -195,7 +195,7 @@ export default function ClientDrawer({ client, onClose, onRefresh }) {
             </button>
           </div>
 
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             <button 
               onClick={handleTriggerCall}
               disabled={isCalling}
@@ -226,34 +226,36 @@ export default function ClientDrawer({ client, onClose, onRefresh }) {
         </div>
 
         {/* Content Section */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px 32px' }} className="custom-scrollbar">
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '12px 20px 20px' }} className="custom-scrollbar">
           {tab === 'details' ? (
-            <>
-              <div style={{ marginBottom: 24 }}>
-                <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--accent-primary)', marginBottom: 12, letterSpacing: '0.1em' }}>Basic Information</h4>
-                <InfoRow icon={Mail} label="Email Address" value={client.email} />
-                <InfoRow icon={Globe} label="Timezone" value={client.timezone} />
-                <InfoRow icon={Calendar} label="Scheduled Call" value={client.scheduled_call_time ? new Date(client.scheduled_call_time).toLocaleString() : 'Not scheduled'} />
-                <InfoRow icon={Clock} label="Date Added" value={new Date(client.created_at).toLocaleDateString()} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div>
+                <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--accent-primary)', marginBottom: 10, letterSpacing: '0.1em' }}>Basic Information</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
+                  <InfoRow icon={Mail} label="Email Address" value={client.email} />
+                  <InfoRow icon={Globe} label="Timezone" value={client.timezone} />
+                  <InfoRow icon={Calendar} label="Scheduled Call" value={client.scheduled_call_time ? new Date(client.scheduled_call_time).toLocaleString() : 'Not scheduled'} />
+                  <InfoRow icon={Clock} label="Date Added" value={new Date(client.created_at).toLocaleDateString()} />
+                </div>
               </div>
 
-              <div style={{ marginBottom: 24 }}>
-                <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--accent-secondary)', marginBottom: 12, letterSpacing: '0.1em' }}>AI Strategy & Context</h4>
+              <div>
+                <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--accent-secondary)', marginBottom: 10, letterSpacing: '0.1em' }}>AI Strategy & Context</h4>
                 <div style={{ padding: 16, background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border-default)', borderLeft: '4px solid var(--accent-secondary)' }}>
                   <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, fontStyle: 'italic' }}>"{client.follow_up_context}"</p>
                 </div>
               </div>
 
               {client.notes && (
-                <div style={{ marginBottom: 24 }}>
-                  <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 12, letterSpacing: '0.1em' }}>Internal Notes</h4>
+                <div>
+                  <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 10, letterSpacing: '0.1em' }}>Internal Notes</h4>
                   <div style={{ padding: 12, background: 'var(--bg-card)', borderRadius: 10, border: '1px solid var(--border-default)', fontSize: 13, color: 'var(--text-secondary)' }}>{client.notes}</div>
                 </div>
               )}
 
               {Object.keys(client.custom_fields || {}).length > 0 && (
-                <div style={{ marginBottom: 24 }}>
-                  <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#a78bfa', marginBottom: 12, letterSpacing: '0.1em' }}>Custom Lead Metadata</h4>
+                <div>
+                  <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#a78bfa', marginBottom: 10, letterSpacing: '0.1em' }}>Custom Lead Metadata</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     {Object.entries(client.custom_fields).map(([key, value]) => (
                       <div key={key} style={{ padding: '10px 14px', background: 'var(--bg-card)', borderRadius: 10, border: '1px solid var(--border-default)' }}>
@@ -264,7 +266,7 @@ export default function ClientDrawer({ client, onClose, onRefresh }) {
                   </div>
                 </div>
               )}
-            </>
+            </div>
           ) : (
             <div style={{ paddingBottom: 20 }}>
               <form onSubmit={handleSubmit(onSubmit)}>
