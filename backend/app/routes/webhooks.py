@@ -218,13 +218,14 @@ async def receive_vapi_webhook(request: Request):
     call_block = _extract_call_block(payload)
     customer_number = _extract_customer_number(payload)
 
+    print(f"DEBUG: Webhook hit! Event: {event_type}")
     logger.info(
-        "Vapi webhook received: event_type=%s vapi_call_id=%s customer_number=%s payload=%s",
+        "Vapi webhook received: event_type=%s vapi_call_id=%s customer_number=%s",
         event_type,
         vapi_call_id,
         customer_number,
-        json.dumps(payload, default=str)[:4000],
     )
+    logger.debug("Full payload: %s", json.dumps(payload, default=str))
 
     db = SessionLocal()
     try:
@@ -338,4 +339,5 @@ async def receive_vapi_webhook(request: Request):
     finally:
         db.close()
 
+    print(f"DEBUG: Webhook finished processing: {event_type}")
     return {"received": True}
