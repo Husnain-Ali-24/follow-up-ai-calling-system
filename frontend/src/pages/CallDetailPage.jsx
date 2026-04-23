@@ -49,12 +49,50 @@ export default function CallDetailPage() {
     toast.success('Transcript downloaded.');
   };
 
+  const copyTextFallback = (value) => {
+    const textArea = document.createElement('textarea');
+    textArea.value = value;
+    textArea.setAttribute('readonly', '');
+    textArea.style.position = 'fixed';
+    textArea.style.opacity = '0';
+    textArea.style.pointerEvents = 'none';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    let copied = false;
+
+    try {
+      copied = document.execCommand('copy');
+    } catch {
+      copied = false;
+    }
+
+    document.body.removeChild(textArea);
+    return copied;
+  };
+
   const handleShare = async () => {
     const shareUrl = window.location.href;
 
     try {
-      await navigator.clipboard.writeText(shareUrl);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success('Call URL copied to clipboard.');
+        return;
+      }
+    } catch {
+      // Fall back to execCommand below for local/dev browsers.
+    }
+
+    if (copyTextFallback(shareUrl)) {
       toast.success('Call URL copied to clipboard.');
+      return;
+    }
+
+    try {
+      window.prompt('Copy this call URL:', shareUrl);
+      toast.success('Copy the URL from the dialog.');
     } catch {
       toast.error('URL copy failed on this browser.');
     }
