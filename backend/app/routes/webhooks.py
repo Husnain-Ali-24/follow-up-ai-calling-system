@@ -256,16 +256,18 @@ async def receive_vapi_webhook(request: Request):
             client.status if client is not None else None,
         )
 
-        if event_type == "call-started":
+        if event_type in {"call-started", "assistant.started"}:
             call.status = CallStatus.IN_PROGRESS
-            call.started_at = datetime.now(timezone.utc)
+            if not call.started_at:
+                call.started_at = datetime.now(timezone.utc)
             if client is not None:
                 client.status = ClientStatus.IN_PROGRESS
                 client.last_call_attempt_at = call.started_at
 
-        elif event_type == "call-ended":
+        elif event_type in {"call-ended", "end-of-call-report"}:
             ended_at = datetime.now(timezone.utc)
-            call.ended_at = ended_at
+            if not call.ended_at:
+                call.ended_at = ended_at
             if call.started_at is None:
                 call.started_at = ended_at
 
@@ -311,6 +313,11 @@ async def receive_vapi_webhook(request: Request):
             )
             if status_value == "in-progress":
                 call.status = CallStatus.IN_PROGRESS
+                if client is not None:
+                    client.status = ClientStatus.IN_PROGRESS
+            elif status_value == "ended" and call.status not in {CallStatus.COMPLETED, CallStatus.FAILED, CallStatus.NO_ANSWER, CallStatus.BUSY, CallStatus.VOICEMAIL}:
+                # Preliminary update until report arrives
+                call.status = CallStatus.COMPLETED
 
         elif event_type == "function-call":
             function_call_payload = ((payload.get("message") or {}).get("functionCall") or {})
