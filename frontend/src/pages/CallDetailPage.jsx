@@ -50,34 +50,13 @@ export default function CallDetailPage() {
   };
 
   const handleShare = async () => {
-    const shareText = [
-      `Call with ${call.client_name}`,
-      `Status: ${call.status}`,
-      `Sentiment: ${call.sentiment || '—'}`,
-      call.summary ? `Summary: ${call.summary}` : null,
-      call.transcript ? `Transcript:\n${call.transcript}` : null,
-    ].filter(Boolean).join('\n');
-
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `Call with ${call.client_name}`,
-          text: shareText,
-        });
-        toast.success('Call details shared.');
-        return;
-      } catch (error) {
-        if (error?.name === 'AbortError') {
-          return;
-        }
-      }
-    }
+    const shareUrl = window.location.href;
 
     try {
-      await navigator.clipboard.writeText(shareText);
-      toast.success('Call details copied to clipboard.');
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success('Call URL copied to clipboard.');
     } catch {
-      toast.error('Sharing failed on this browser.');
+      toast.error('URL copy failed on this browser.');
     }
   };
 
@@ -105,7 +84,7 @@ export default function CallDetailPage() {
             </button>
             <button onClick={handleShare} className="btn-secondary flex items-center space-x-2 text-sm text-accent-primary">
               <Share2 size={16} />
-              <span>Share</span>
+              <span>Copy Link</span>
             </button>
           </>
         }
