@@ -50,8 +50,6 @@ const toDateTimeLocalInputValue = (value) => {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
-const TOPBAR_HEIGHT = 64;
-
 export default function ClientDrawer({ client, onClose, onRefresh }) {
   const [tab, setTab] = useState('details');
   const [isSaving, setIsSaving] = useState(false);
@@ -159,14 +157,14 @@ export default function ClientDrawer({ client, onClose, onRefresh }) {
   return (
     <>
       <div onClick={onClose} style={{
-        position: 'fixed', top: TOPBAR_HEIGHT, right: 0, bottom: 0, left: 0, zIndex: 9998,
+        position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 9998,
         background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)',
         animation: 'fadeIn 0.2s ease'
       }} />
 
       <div style={{
-        position: 'fixed', top: TOPBAR_HEIGHT, right: 0, zIndex: 9999,
-        height: `calc(100vh - ${TOPBAR_HEIGHT}px)`,
+        position: 'fixed', top: 0, right: 0, zIndex: 9999,
+        height: '100vh',
         width: '100%', maxWidth: '480px', background: 'var(--bg-secondary)',
         boxShadow: '-10px 0 40px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column',
         animation: 'slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)', borderLeft: '1px solid var(--border-default)'
