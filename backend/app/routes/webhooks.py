@@ -208,6 +208,7 @@ def _find_or_create_call(db: Session, payload: dict) -> Call | None:
 async def receive_vapi_webhook(request: Request):
     body = await request.body()
     if not verify_vapi_request(request, body):
+        logger.warning("Vapi webhook rejected: invalid authentication")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Vapi webhook authentication",
@@ -219,7 +220,10 @@ async def receive_vapi_webhook(request: Request):
     call_block = _extract_call_block(payload)
     customer_number = _extract_customer_number(payload)
 
-    print(f"DEBUG: Webhook hit! Event: {event_type}")
+    print(
+        f"[VAPI WEBHOOK] received event_type={event_type} vapi_call_id={vapi_call_id} customer_number={customer_number}",
+        flush=True,
+    )
     logger.info(
         "Vapi webhook received: event_type=%s vapi_call_id=%s customer_number=%s",
         event_type,
@@ -232,6 +236,12 @@ async def receive_vapi_webhook(request: Request):
     try:
         call = _find_or_create_call(db, payload)
         if call is None:
+            response_payload = {
+                "received": True,
+                "event_type": event_type,
+                "vapi_call_id": vapi_call_id,
+                "ignored": "call not matched",
+            }
             logger.warning(
                 "Vapi webhook ignored because no matching call/client was found: "
                 "event_type=%s vapi_call_id=%s customer_number=%s",
@@ -239,7 +249,8 @@ async def receive_vapi_webhook(request: Request):
                 vapi_call_id,
                 customer_number,
             )
-            return {"received": True, "ignored": "call not matched"}
+            print(f"[VAPI WEBHOOK] response={json.dumps(response_payload, default=str)}", flush=True)
+            return response_payload
 
         if vapi_call_id and not call.vapi_call_id:
             call.vapi_call_id = vapi_call_id
@@ -352,8 +363,18 @@ async def receive_vapi_webhook(request: Request):
             call.status,
             client.status if client is not None else None,
         )
+        response_payload = {
+            "received": True,
+            "event_type": event_type,
+            "vapi_call_id": vapi_call_id,
+            "call_id": str(call.id),
+            "call_status": call.status.value if hasattr(call.status, "value") else str(call.status),
+            "client_status": client.status.value if client is not None and hasattr(client.status, "value") else (
+                str(client.status) if client is not None else None
+            ),
+        }
     finally:
         db.close()
 
-    print(f"DEBUG: Webhook finished processing: {event_type}")
-    return {"received": True}
+    print(f"[VAPI WEBHOOK] response={json.dumps(response_payload, default=str)}", flush=True)
+    return response_payload
