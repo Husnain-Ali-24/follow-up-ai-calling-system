@@ -3,9 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import PageHeader from '../components/shared/PageHeader';
 import DataTable from '../components/shared/DataTable';
 import callService from '../services/callService';
-import { Search, MoreHorizontal, Phone, MessageSquare, Play, Download } from 'lucide-react';
+import { Search, MessageSquare, Download } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { STATUS_VARIANTS } from '../lib/constants';
 
 import { useNotifications } from '../hooks/useNotifications';
 
@@ -109,14 +108,6 @@ export default function CallsPage() {
           >
             <MessageSquare size={16} />
           </button>
-          {row.original.recording_url && (
-            <button 
-              className="p-2 hover:bg-background-active rounded-md transition-colors text-text-muted hover:text-accent-primary"
-              title="Play Recording"
-            >
-              <Play size={16} />
-            </button>
-          )}
         </div>
       ),
     }

@@ -12,9 +12,10 @@ export default function TranscriptViewer({ transcript }) {
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
       {lines.map((line, i) => {
-        const isAI = line.startsWith('AI:');
-        const content = line.replace(/^(AI|James|Sarah|Carlos|User):/, '').trim();
-        const speaker = line.split(':')[0];
+        const separatorIndex = line.indexOf(':');
+        const speaker = separatorIndex >= 0 ? line.slice(0, separatorIndex).trim() : 'Speaker';
+        const content = separatorIndex >= 0 ? line.slice(separatorIndex + 1).trim() : line.trim();
+        const isAI = speaker.toLowerCase() === 'ai';
 
         return (
           <div key={i} className={cn(

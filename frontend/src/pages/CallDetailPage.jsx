@@ -3,9 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import PageHeader from '../components/shared/PageHeader';
 import callService from '../services/callService';
 import TranscriptViewer from '../components/calls/TranscriptViewer';
-import AudioPlayer from '../components/calls/AudioPlayer';
 import CallTimeline from '../components/calls/CallTimeline';
-import { ArrowLeft, Clock, Calendar, Phone, Activity, Download, Share2 } from 'lucide-react';
+import { ArrowLeft, Download, Share2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export default function CallDetailPage() {
@@ -31,6 +30,43 @@ export default function CallDetailPage() {
     fetchCallData();
   }, [id]);
 
+  const handleDownloadTranscript = () => {
+    if (!call?.transcript) return;
+
+    const transcriptBlob = new Blob([call.transcript], { type: 'text/plain;charset=utf-8' });
+    const downloadUrl = URL.createObjectURL(transcriptBlob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = `transcript-${call.call_id}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(downloadUrl);
+  };
+
+  const handleShare = async () => {
+    const shareText = [
+      `Call with ${call.client_name}`,
+      `Status: ${call.status}`,
+      `Sentiment: ${call.sentiment || 'neutral'}`,
+      call.summary ? `Summary: ${call.summary}` : null,
+    ].filter(Boolean).join('\n');
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Call with ${call.client_name}`,
+          text: shareText,
+        });
+        return;
+      } catch {
+        // Fall back to clipboard below if sharing is canceled or unavailable.
+      }
+    }
+
+    await navigator.clipboard.writeText(shareText);
+  };
+
   if (loading) return <div className="text-text-muted">Loading call details...</div>;
   if (!call) return <div className="text-center py-20">Call not found</div>;
 
@@ -49,11 +85,11 @@ export default function CallDetailPage() {
         subtitle={`ID: ${call.call_id} • ${new Date(call.started_at).toLocaleString()}`}
         actions={
           <>
-            <button className="btn-secondary flex items-center space-x-2 text-sm">
+            <button onClick={handleDownloadTranscript} className="btn-secondary flex items-center space-x-2 text-sm">
               <Download size={16} />
               <span>Transcript</span>
             </button>
-            <button className="btn-secondary flex items-center space-x-2 text-sm text-accent-primary">
+            <button onClick={handleShare} className="btn-secondary flex items-center space-x-2 text-sm text-accent-primary">
               <Share2 size={16} />
               <span>Share</span>
             </button>
@@ -63,15 +99,6 @@ export default function CallDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          {/* Audio Player Section */}
-          <div className="bg-background-card border border-border rounded-xl p-6">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted mb-4 flex items-center">
-              <Activity size={16} className="mr-2" />
-              Recording
-            </h3>
-            <AudioPlayer url={call.recording_url} duration={call.duration_seconds} />
-          </div>
-
           {/* Transcript Section */}
           <div className="bg-background-card border border-border rounded-xl overflow-hidden flex flex-col h-[600px]">
             <div className="p-6 border-b border-border flex items-center justify-between bg-background-secondary/30">
@@ -100,7 +127,7 @@ export default function CallDetailPage() {
                 call.sentiment === 'negative' ? 'bg-status-error-bg text-status-error' :
                 'bg-status-warning-bg text-status-warning'
               )}>
-                {call.sentiment || 'neutral'}
+                {call.sentiment || '—'}
               </div>
             </div>
           </div>

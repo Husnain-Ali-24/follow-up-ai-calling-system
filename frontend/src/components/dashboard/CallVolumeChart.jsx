@@ -1,10 +1,13 @@
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { DUMMY_CALL_VOLUME } from '../../data/dummy/dashboard.dummy';
 
-export default function CallVolumeChart() {
+export default function CallVolumeChart({ data = [], loading = false }) {
+  if (loading) {
+    return <div className="h-full w-full rounded-xl bg-background-secondary animate-pulse" />;
+  }
+
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={DUMMY_CALL_VOLUME} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+      <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e1e2e" />
         <XAxis 
           dataKey="date" 

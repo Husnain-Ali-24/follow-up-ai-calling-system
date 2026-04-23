@@ -26,3 +26,33 @@ class CallResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CallListItem(BaseModel):
+    call_id: str
+    client_id: str
+    client_name: str
+    client_phone: str
+    vapi_call_id: Optional[str]
+    attempt_number: int
+    status: str
+    sentiment: Optional[str]
+    duration_seconds: int
+    started_at: datetime
+    ended_at: Optional[datetime]
+    recording_url: Optional[str]
+    created_at: datetime
+
+
+class CallDetailResponse(CallListItem):
+    transcript: Optional[str]
+    summary: Optional[str]
+    structured_answers: Optional[dict[str, Any]]
+    error_message: Optional[str]
+
+
+class CallEventResponse(BaseModel):
+    event_id: str
+    type: str
+    timestamp: datetime
+    description: str

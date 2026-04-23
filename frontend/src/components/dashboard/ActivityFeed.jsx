@@ -1,15 +1,21 @@
-import { DUMMY_RECENT_ACTIVITY } from '../../data/dummy/dashboard.dummy';
+import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '../../lib/utils';
 import { STATUS_VARIANTS } from '../../lib/constants';
 
-export default function ActivityFeed() {
+export default function ActivityFeed({ activities = [], loading = false }) {
+  const navigate = useNavigate();
+
   return (
     <div className="bg-background-card border border-border rounded-xl p-6 h-full flex flex-col">
       <h3 className="text-lg font-semibold text-text-primary mb-6">Recent Activity</h3>
       
       <div className="space-y-6 flex-1 overflow-y-auto pr-2 custom-scrollbar">
-        {DUMMY_RECENT_ACTIVITY.map((activity) => (
+        {loading ? (
+          Array.from({ length: 4 }).map((_, idx) => (
+            <div key={idx} className="h-14 rounded-lg bg-background-secondary animate-pulse" />
+          ))
+        ) : activities.length > 0 ? activities.map((activity) => (
           <div key={activity.call_id} className="relative pl-6 pb-6 border-l border-border last:pb-0">
             <div className={cn(
               "absolute left-[-5px] top-1 w-2.5 h-2.5 rounded-full",
@@ -44,12 +50,19 @@ export default function ActivityFeed() {
               )}
             </div>
           </div>
-        ))}
+        )) : (
+          <div className="text-sm text-text-muted">No recent call activity yet.</div>
+        )}
       </div>
       
-      <button className="w-full mt-6 text-sm text-accent-primary hover:text-accent-primary-hover font-medium transition-colors">
-        View All Activity
-      </button>
+      {!loading && activities.length > 0 && (
+        <button
+          onClick={() => navigate('/calls')}
+          className="w-full mt-6 text-sm text-accent-primary hover:text-accent-primary-hover font-medium transition-colors"
+        >
+          View All Activity
+        </button>
+      )}
     </div>
   );
 }

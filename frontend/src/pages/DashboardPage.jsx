@@ -7,18 +7,22 @@ import dashboardService from '../services/dashboardService';
 
 export default function DashboardPage() {
   const [stats, setStats] = useState(null);
+  const [callVolume, setCallVolume] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchOverview = async () => {
       try {
-        const data = await dashboardService.getStats();
-        setStats(data);
+        const data = await dashboardService.getOverview();
+        setStats(data.stats);
+        setCallVolume(data.call_volume || []);
+        setRecentActivity(data.recent_activity || []);
       } finally {
         setLoading(false);
       }
     };
-    fetchStats();
+    fetchOverview();
   }, []);
 
   return (
@@ -35,19 +39,18 @@ export default function DashboardPage() {
           <div className="bg-background-card border border-border rounded-xl p-6 h-full">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-text-primary">Call Volume (7 Days)</h3>
-              <select className="bg-background-secondary border border-border rounded-md px-3 py-1 text-sm focus:outline-none">
-                <option>Last 7 Days</option>
-                <option>Last 30 Days</option>
-              </select>
+              <div className="bg-background-secondary border border-border rounded-md px-3 py-1 text-sm text-text-secondary">
+                Last 7 Days
+              </div>
             </div>
             <div className="h-[300px]">
-              <CallVolumeChart />
+              <CallVolumeChart data={callVolume} loading={loading} />
             </div>
           </div>
         </div>
 
         <div className="lg:col-span-1">
-          <ActivityFeed />
+          <ActivityFeed activities={recentActivity} loading={loading} />
         </div>
       </div>
     </div>
