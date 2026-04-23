@@ -4,21 +4,20 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.database.session import SessionLocal
-from app.models.call import Call, CallStatus, Reschedule
+from app.models.call import Call, CallStatus
 from app.models.client import Client, ClientStatus
 from app.services.calling_window import (
     align_to_calling_window,
     get_effective_calling_window,
-    next_call_window_start,
 )
 from app.services.notifier import notifier
+from app.services.reschedule_service import book_reschedule, check_slot_availability
 from app.services.webhook_verifier import verify_vapi_request
 
 
@@ -44,6 +43,40 @@ def _extract_customer_number(payload: dict) -> str | None:
     call_block = _extract_call_block(payload)
     customer = call_block.get("customer") or payload.get("customer") or {}
     return customer.get("number")
+
+
+def _extract_tool_call_list(payload: dict) -> list[dict]:
+    message = payload.get("message") or {}
+    tool_calls = message.get("toolCallList")
+    if isinstance(tool_calls, list):
+        return tool_calls
+    return []
+
+
+def _extract_tool_arguments(tool_call: dict) -> dict:
+    arguments = tool_call.get("arguments")
+    if isinstance(arguments, dict):
+        return arguments
+
+    function_block = tool_call.get("function") or {}
+    parameters = function_block.get("parameters")
+    if isinstance(parameters, dict):
+        return parameters
+
+    return {}
+
+
+def _single_line_json(value: dict) -> str:
+    return json.dumps(value, separators=(",", ":"), ensure_ascii=True)
+
+
+def _build_tool_result(tool_call_id: str, *, result: dict | None = None, error: str | None = None) -> dict:
+    payload: dict[str, str] = {"toolCallId": tool_call_id}
+    if error is not None:
+        payload["error"] = " ".join(error.split())
+    else:
+        payload["result"] = _single_line_json(result or {})
+    return payload
 
 
 def _map_ended_reason_to_status(reason: str | None) -> CallStatus:
@@ -105,62 +138,6 @@ def _schedule_retry(client: Client, call: Call, reference_time: datetime, call_w
     client.status = ClientStatus.PENDING
 
 
-def _parse_reschedule_time(raw_value: str | None, timezone_name: str, call_window) -> datetime | None:
-    if not raw_value:
-        return None
-
-    try:
-        parsed = datetime.fromisoformat(raw_value)
-    except ValueError:
-        return None
-
-    client_tz = ZoneInfo(timezone_name)
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=client_tz)
-
-    return align_to_calling_window(
-        parsed.astimezone(timezone.utc),
-        timezone_name,
-        call_window=call_window,
-    )
-
-
-def _handle_reschedule(
-    db: Session,
-    client: Client,
-    call: Call,
-    function_call_payload: dict,
-    call_window,
-) -> None:
-    if client.reschedule_count >= 3:
-        client.status = ClientStatus.MANUAL_FOLLOW_UP_REQUIRED
-        return
-
-    parameters = function_call_payload.get("parameters") or {}
-    requested_time = _parse_reschedule_time(
-        parameters.get("new_datetime") or parameters.get("scheduled_call_time"),
-        client.timezone,
-        call_window,
-    )
-    if requested_time is None:
-        requested_time = next_call_window_start(client.timezone, call_window=call_window)
-
-    original_time = client.scheduled_call_time or datetime.now(timezone.utc)
-
-    reschedule = Reschedule(
-        client_id=client.id,
-        call_id=call.id,
-        original_time=original_time,
-        new_time=requested_time,
-        reason=parameters.get("reason") or parameters.get("notes"),
-    )
-    db.add(reschedule)
-
-    client.scheduled_call_time = requested_time
-    client.reschedule_count += 1
-    client.status = ClientStatus.RESCHEDULED
-
-
 def _find_or_create_call(db: Session, payload: dict) -> Call | None:
     vapi_call_id = _extract_vapi_call_id(payload)
     if vapi_call_id:
@@ -202,6 +179,159 @@ def _find_or_create_call(db: Session, payload: dict) -> Call | None:
     db.add(call)
     db.flush()
     return call
+
+
+def _get_client_for_call(db: Session, call: Call | None) -> Client | None:
+    if call is None:
+        return None
+    return db.query(Client).filter(Client.id == call.client_id).first()
+
+
+@router.post("/vapi/tools")
+async def receive_vapi_tool_calls(request: Request):
+    body = await request.body()
+    if not verify_vapi_request(request, body):
+        logger.warning("Vapi tool request rejected: invalid authentication")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Vapi webhook authentication",
+        )
+
+    payload = await request.json()
+    event_type = _extract_event_type(payload)
+    tool_call_list = _extract_tool_call_list(payload)
+
+    if event_type != "tool-calls" or not tool_call_list:
+        return {"results": []}
+
+    db = SessionLocal()
+    try:
+        call = _find_or_create_call(db, payload)
+        client = _get_client_for_call(db, call)
+        call_window = get_effective_calling_window(db)
+        results: list[dict] = []
+        should_commit = False
+        should_notify = False
+
+        for tool_call in tool_call_list:
+            tool_call_id = str(tool_call.get("id") or "")
+            tool_name = str(tool_call.get("name") or "").strip()
+            arguments = _extract_tool_arguments(tool_call)
+
+            if not tool_call_id:
+                continue
+
+            if tool_name == "check_available_slots":
+                timezone_name = arguments.get("lead_timezone") or (client.timezone if client is not None else "UTC")
+                requested_time = (
+                    arguments.get("lead_requested_callback_time")
+                    or arguments.get("requested_callback_time")
+                    or arguments.get("confirmed_datetime")
+                )
+                slot_check = check_slot_availability(
+                    lead_timezone=timezone_name,
+                    requested_callback_time=requested_time,
+                    call_window=call_window,
+                )
+                results.append(
+                    _build_tool_result(
+                        tool_call_id,
+                        result={
+                            "available": slot_check.is_available,
+                            "reason": slot_check.reason,
+                            "lead_timezone": slot_check.lead_timezone,
+                            "requested_local_iso": slot_check.requested_local_iso,
+                            "requested_utc_iso": slot_check.requested_utc_iso,
+                            "window_start_local": call_window.start_text,
+                            "window_end_local": call_window.end_text,
+                        },
+                    )
+                )
+                continue
+
+            if tool_name == "book_reschedule":
+                if client is None:
+                    results.append(
+                        _build_tool_result(
+                            tool_call_id,
+                            error="Unable to identify the lead for this call.",
+                        )
+                    )
+                    continue
+
+                booking = book_reschedule(
+                    db,
+                    client=client,
+                    call=call,
+                    confirmed_datetime=(
+                        arguments.get("confirmed_datetime")
+                        or arguments.get("confirmed_callback_time")
+                        or arguments.get("scheduled_call_time")
+                    ),
+                    reason=arguments.get("reason") or arguments.get("notes"),
+                    lead_timezone=arguments.get("lead_timezone") or client.timezone,
+                    call_window=call_window,
+                )
+                if booking.success:
+                    should_commit = True
+                    should_notify = True
+                    results.append(
+                        _build_tool_result(
+                            tool_call_id,
+                            result={
+                                "success": True,
+                                "reason": booking.reason,
+                                "lead_timezone": booking.lead_timezone,
+                                "scheduled_local_iso": booking.scheduled_local_iso,
+                                "scheduled_utc_iso": booking.scheduled_utc_iso,
+                                "reschedule_count": booking.reschedule_count,
+                            },
+                        )
+                    )
+                else:
+                    if booking.reason == "max_reschedules_reached":
+                        should_commit = True
+                        should_notify = True
+                    results.append(
+                        _build_tool_result(
+                            tool_call_id,
+                            result={
+                                "success": False,
+                                "reason": booking.reason,
+                                "lead_timezone": booking.lead_timezone,
+                                "scheduled_local_iso": booking.scheduled_local_iso,
+                                "scheduled_utc_iso": booking.scheduled_utc_iso,
+                                "reschedule_count": booking.reschedule_count,
+                            },
+                        )
+                    )
+                continue
+
+            results.append(
+                _build_tool_result(
+                    tool_call_id,
+                    error=f"Unsupported tool: {tool_name or 'unknown'}",
+                )
+            )
+
+        if should_commit:
+            db.commit()
+
+        if should_notify and client is not None:
+            await notifier.publish({
+                "type": "status_update",
+                "client_id": str(client.id),
+                "call_id": str(call.id) if call is not None else None,
+                "event_type": "tool-calls",
+                "client_status": client.status.value if hasattr(client.status, "value") else str(client.status),
+                "call_status": call.status.value if call is not None and hasattr(call.status, "value") else (
+                    str(call.status) if call is not None else None
+                ),
+            })
+
+        return {"results": results}
+    finally:
+        db.close()
 
 
 @router.post("/vapi")
@@ -345,7 +475,27 @@ async def receive_vapi_webhook(request: Request):
                 if client is not None:
                     client.status = ClientStatus.REFUSED
             elif function_name == "book_reschedule" and client is not None:
-                _handle_reschedule(db, client, call, function_call_payload, call_window)
+                parameters = function_call_payload.get("parameters") or {}
+                booking = book_reschedule(
+                    db,
+                    client=client,
+                    call=call,
+                    confirmed_datetime=(
+                        parameters.get("confirmed_datetime")
+                        or parameters.get("new_datetime")
+                        or parameters.get("scheduled_call_time")
+                    ),
+                    reason=parameters.get("reason") or parameters.get("notes"),
+                    lead_timezone=parameters.get("lead_timezone") or client.timezone,
+                    call_window=call_window,
+                )
+                if not booking.success:
+                    logger.warning(
+                        "book_reschedule function-call rejected: client_id=%s reason=%s confirmed_datetime=%s",
+                        client.id,
+                        booking.reason,
+                        parameters.get("confirmed_datetime") or parameters.get("new_datetime") or parameters.get("scheduled_call_time"),
+                    )
 
         db.commit()
         await notifier.publish({

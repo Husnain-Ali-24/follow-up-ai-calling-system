@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     app_name: str = "Outbound AI Calling API"
+    business_name: str = "Outbound AI Calling"
     app_env: str = "development"
     app_debug: bool = True
     api_v1_prefix: str = "/api/v1"
@@ -29,6 +30,7 @@ class Settings(BaseSettings):
     calling_window_start: str = "09:00"
     calling_window_end: str = "17:00"
     max_call_retries: int = 3
+    max_reschedule_count: int = 3
     retry_delay_1_minutes: int = 30
     retry_delay_2_minutes: int = 120
     retry_delay_3_hours: int = 24

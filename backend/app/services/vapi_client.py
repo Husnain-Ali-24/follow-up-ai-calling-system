@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Mapping
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 
@@ -36,17 +37,51 @@ def _client_value(client: Mapping[str, Any] | Any, key: str, default: Any = None
     return getattr(client, key, default)
 
 
+def _resolve_timezone_name(client: Mapping[str, Any] | Any) -> str:
+    timezone_name = _client_value(client, "timezone", "UTC") or "UTC"
+    try:
+        ZoneInfo(str(timezone_name))
+    except ZoneInfoNotFoundError:
+        return "UTC"
+    return str(timezone_name)
+
+
+def _current_datetime_local(client: Mapping[str, Any] | Any) -> str:
+    timezone_name = _resolve_timezone_name(client)
+    now_utc = datetime.now(timezone.utc)
+    return now_utc.astimezone(ZoneInfo(timezone_name)).isoformat()
+
+
+def _resolve_call_reason(client: Mapping[str, Any] | Any) -> str:
+    custom_fields = _client_value(client, "custom_fields") or {}
+    if isinstance(custom_fields, Mapping):
+        for key in ("call_reason", "reason", "callback_reason"):
+            value = custom_fields.get(key)
+            if value:
+                return str(value)
+
+    follow_up_context = _client_value(client, "follow_up_context")
+    if follow_up_context:
+        return str(follow_up_context)
+
+    return "follow_up"
+
+
 def build_assistant_overrides(client: Mapping[str, Any] | Any) -> dict[str, Any]:
     custom_fields = _client_value(client, "custom_fields") or {}
+    timezone_name = _resolve_timezone_name(client)
 
     return {
         "variableValues": {
+            "business_name": settings.business_name or settings.app_name,
             "client_id": str(_client_value(client, "id")),
             "client_name": _client_value(client, "full_name"),
             "client_phone_number": _client_value(client, "phone_number"),
-            "client_timezone": _client_value(client, "timezone"),
+            "client_timezone": timezone_name,
             "follow_up_context": _client_value(client, "follow_up_context") or "",
             "previous_interaction": _client_value(client, "previous_interaction") or "",
+            "call_reason": _resolve_call_reason(client),
+            "current_datetime_local": _current_datetime_local(client),
             "notes": _client_value(client, "notes") or "",
             "custom_fields": custom_fields,
         }
