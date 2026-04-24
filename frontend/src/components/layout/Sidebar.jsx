@@ -3,7 +3,6 @@ import {
   LayoutDashboard, 
   Users, 
   PhoneCall, 
-  Calendar, 
   FilePieChart, 
   Settings,
   LogOut,
@@ -18,7 +17,6 @@ const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
   { icon: Users, label: 'Clients', path: '/clients' },
   { icon: PhoneCall, label: 'Call Logs', path: '/calls' },
-  { icon: Calendar, label: 'Schedule', path: '/schedule' },
   { icon: FilePieChart, label: 'Reports', path: '/reports' },
   { icon: Settings, label: 'Settings', path: '/settings' },
 ];
