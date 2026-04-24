@@ -98,7 +98,7 @@ export default function SettingsPage() {
           </div>
 
           <div className="rounded-lg border border-border bg-background-secondary/50 px-4 py-3 text-sm text-text-secondary">
-            Default window: <span className="font-medium text-text-primary">09:00 to 17:00</span>
+            Default window: <span className="font-medium text-text-primary">{settings.calling_window_start} to {settings.calling_window_end}</span>
           </div>
         </form>
       </section>
