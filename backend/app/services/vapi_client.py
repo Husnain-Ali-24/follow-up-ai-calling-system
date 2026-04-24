@@ -115,6 +115,10 @@ def build_outbound_call_payload(
         "assistantOverrides": dict(
             assistant_overrides or build_assistant_overrides(client)
         ),
+        "metadata": {
+            "client_id": str(_client_value(client, "id")),
+            "business_name": settings.business_name or settings.app_name,
+        },
     }
 
     if schedule_for is not None:

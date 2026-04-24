@@ -66,16 +66,12 @@ def _extract_tool_arguments(tool_call: dict) -> dict:
     return {}
 
 
-def _single_line_json(value: dict) -> str:
-    return json.dumps(value, separators=(",", ":"), ensure_ascii=True)
-
-
-def _build_tool_result(tool_call_id: str, *, result: dict | None = None, error: str | None = None) -> dict:
-    payload: dict[str, str] = {"toolCallId": tool_call_id}
+def _build_tool_result(tool_call_id: str, *, result: Any = None, error: str | None = None) -> dict:
+    payload: dict[str, Any] = {"toolCallId": tool_call_id}
     if error is not None:
         payload["error"] = " ".join(error.split())
     else:
-        payload["result"] = _single_line_json(result or {})
+        payload["result"] = result or {}
     return payload
 
 
