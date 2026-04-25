@@ -29,6 +29,7 @@ def read_clients(
     page: int | None = None,
     per_page: int | None = None,
     search: str | None = None,
+    status: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_authenticated_user)
 ):
@@ -42,11 +43,12 @@ def read_clients(
             page=resolved_page,
             per_page=resolved_per_page,
             search=search,
+            status=status,
         )
 
     resolved_limit = min(max(limit, 1), 100)
-    items = get_clients(db, skip=skip, limit=resolved_limit, search=search)
-    total = get_clients_page(db, page=1, per_page=1, search=search)["total"]
+    items = get_clients(db, skip=skip, limit=resolved_limit, search=search, status=status)
+    total = get_clients_page(db, page=1, per_page=1, search=search, status=status)["total"]
     current_page = (skip // resolved_limit) + 1
     pages = (total + resolved_limit - 1) // resolved_limit if total else 0
     return {

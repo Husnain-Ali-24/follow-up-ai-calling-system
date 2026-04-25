@@ -61,8 +61,9 @@ def get_dashboard_overview(
         if (call.created_at or now_utc) >= start_of_today
     ]
 
-    successful_calls = [call for call in calls_today if call.status == CallStatus.COMPLETED]
+    successful_calls = [call for call in calls_today if call.status in {CallStatus.COMPLETED, CallStatus.RESCHEDULED}]
     failed_calls = [call for call in calls_today if call.status in FAILED_CALL_STATUSES]
+    rescheduled_calls_today = [call for call in calls_today if call.status == CallStatus.RESCHEDULED]
 
     duration_values = [
         call.duration_seconds for call in recent_calls
@@ -72,10 +73,10 @@ def get_dashboard_overview(
 
     ended_calls = [
         call for call in recent_calls
-        if call.status in FAILED_CALL_STATUSES or call.status == CallStatus.COMPLETED
+        if call.status in FAILED_CALL_STATUSES or call.status in {CallStatus.COMPLETED, CallStatus.RESCHEDULED}
     ]
     success_rate = int(
-        round((len([call for call in ended_calls if call.status == CallStatus.COMPLETED]) / len(ended_calls)) * 100)
+        round((len([call for call in ended_calls if call.status in {CallStatus.COMPLETED, CallStatus.RESCHEDULED}]) / len(ended_calls)) * 100)
     ) if ended_calls else 0
 
     volume_map: dict[str, dict[str, int]] = {}
@@ -98,6 +99,12 @@ def get_dashboard_overview(
             continue
         if call.status == CallStatus.COMPLETED:
             volume_map[label]["completed"] += 1
+        elif call.status == CallStatus.RESCHEDULED:
+            # We already count reschedules from Reschedule model below, 
+            # but if we want to be safe we could ensure no double counting.
+            # Actually, let's keep the existing logic for volume_map["rescheduled"] 
+            # as it uses the Reschedule model which is more accurate for historical data.
+            pass
         elif call.status in FAILED_CALL_STATUSES:
             volume_map[label]["failed"] += 1
 
@@ -127,7 +134,7 @@ def get_dashboard_overview(
         calls_today=len(calls_today),
         calls_successful=len(successful_calls),
         calls_failed=len(failed_calls),
-        calls_rescheduled=len([client for client in all_clients if client.status == ClientStatus.RESCHEDULED]),
+        calls_rescheduled=len(rescheduled_calls_today),
         calls_pending=len([client for client in all_clients if client.status in {ClientStatus.PENDING, ClientStatus.QUEUED}]),
         success_rate=success_rate,
         avg_duration_seconds=avg_duration_seconds,

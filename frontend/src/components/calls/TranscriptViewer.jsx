@@ -15,7 +15,7 @@ export default function TranscriptViewer({ transcript }) {
         const separatorIndex = line.indexOf(':');
         const speaker = separatorIndex >= 0 ? line.slice(0, separatorIndex).trim() : 'Speaker';
         const content = separatorIndex >= 0 ? line.slice(separatorIndex + 1).trim() : line.trim();
-        const isAI = speaker.toLowerCase() === 'ai';
+        const isAI = speaker.toLowerCase() === 'ai' || speaker.toLowerCase() === 'assistant';
 
         return (
           <div key={i} className={cn(

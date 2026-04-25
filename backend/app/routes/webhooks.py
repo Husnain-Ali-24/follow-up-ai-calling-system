@@ -154,16 +154,15 @@ def _map_ended_reason_to_status(reason: str | None) -> CallStatus:
 
 
 def _update_client_status_from_call(client: Client, call: Call) -> None:
-    if call.status == CallStatus.COMPLETED:
+    call_status_str = str(call.status.value) if hasattr(call.status, "value") else str(call.status)
+    
+    if "rescheduled" in call_status_str.lower():
+        client.status = ClientStatus.RESCHEDULED
+    elif "completed" in call_status_str.lower():
         client.status = ClientStatus.COMPLETED
-    elif call.status == CallStatus.REFUSED:
+    elif "refused" in call_status_str.lower():
         client.status = ClientStatus.REFUSED
-    elif call.status in {
-        CallStatus.NO_ANSWER,
-        CallStatus.VOICEMAIL,
-        CallStatus.BUSY,
-        CallStatus.FAILED,
-    }:
+    elif any(s in call_status_str.lower() for s in ["no_answer", "voicemail", "busy", "failed"]):
         client.status = ClientStatus.FAILED
     else:
         client.status = ClientStatus.IN_PROGRESS
@@ -350,6 +349,8 @@ async def receive_vapi_tool_calls(request: Request):
                 if booking.success:
                     should_commit = True
                     should_notify = True
+                    if call is not None:
+                        call.status = CallStatus.RESCHEDULED
                     results.append(
                         _build_tool_result(
                             tool_call_id,
@@ -398,8 +399,8 @@ async def receive_vapi_tool_calls(request: Request):
                 "client_id": str(client.id),
                 "call_id": str(call.id) if call is not None else None,
                 "event_type": "tool-calls",
-                "client_status": client.status.value if hasattr(client.status, "value") else str(client.status),
-                "call_status": call.status.value if call is not None and hasattr(call.status, "value") else (
+                "client_status": str(client.status.value) if hasattr(client.status, "value") else str(client.status),
+                "call_status": str(call.status.value) if call is not None and hasattr(call.status, "value") else (
                     str(call.status) if call is not None else None
                 ),
             })
@@ -424,6 +425,7 @@ async def receive_vapi_webhook(request: Request):
     event_type = _extract_event_type(payload)
     vapi_call_id = _extract_vapi_call_id(payload)
     call_block = _extract_call_block(payload)
+    message_block = payload.get("message") or {}
     customer_number = _extract_customer_number(payload)
 
     print(
@@ -494,15 +496,41 @@ async def receive_vapi_webhook(request: Request):
                 or payload.get("endedReason")
                 or call_block.get("endedReason")
             )
-            call.status = _map_ended_reason_to_status(ended_reason)
+            current_status_str = str(call.status.value) if hasattr(call.status, "value") else str(call.status)
+            terminal_statuses = {"completed", "failed", "no_answer", "busy", "voicemail", "rescheduled", "refused"}
+            is_terminal = any(s in current_status_str.lower() for s in terminal_statuses)
+            
+            if not is_terminal:
+                call.status = _map_ended_reason_to_status(ended_reason)
 
-            transcript_messages = call_block.get("messages")
-            if transcript_messages and not call.transcript:
-                call.transcript = "\n".join(
-                    str(message.get("message", "")).strip()
-                    for message in transcript_messages
-                    if message.get("message")
-                ) or None
+            transcript_messages = (
+                call_block.get("messages") 
+                or (call_block.get("artifact") or {}).get("messages")
+                or message_block.get("artifact", {}).get("messages")
+            )
+            
+            if transcript_messages:
+                formatted_lines = []
+                for msg in transcript_messages:
+                    role = msg.get("role")
+                    content = msg.get("message") or msg.get("content")
+                    
+                    # Skip system messages (the long prompt instructions)
+                    if role == "system" or not content:
+                        continue
+                        
+                    label = "Assistant" if role == "assistant" else "User" if role == "user" else role.capitalize()
+                    formatted_lines.append(f"{label}: {str(content).strip()}")
+                
+                if formatted_lines:
+                    call.transcript = "\n".join(formatted_lines)
+
+            if not call.transcript:
+                # Fallback to plain transcript artifact if available
+                call.transcript = (
+                    (call_block.get("artifact") or {}).get("transcript")
+                    or message_block.get("artifact", {}).get("transcript")
+                )
 
             recording_url = call_block.get("recordingUrl") or payload.get("recordingUrl")
             if recording_url:
@@ -510,6 +538,45 @@ async def receive_vapi_webhook(request: Request):
 
             if call.started_at and call.ended_at:
                 call.duration_seconds = int((call.ended_at - call.started_at).total_seconds())
+
+            # Extract analysis data (summary, structured data, sentiment)
+            analysis = (
+                call_block.get("analysis") 
+                or payload.get("analysis") 
+                or message_block.get("analysis")
+                or {}
+            )
+            
+            # 1. Try standard summary
+            call.summary = analysis.get("summary")
+            
+            # 2. Try structured data
+            structured_data = analysis.get("structuredData")
+            if structured_data:
+                call.structured_answers = structured_data
+                
+                # If standard summary is missing, look for "Call Summary" in structured data
+                if not call.summary:
+                    if isinstance(structured_data, dict):
+                        # Handle the ID-based map format the user provided
+                        for item in structured_data.values():
+                            if isinstance(item, dict) and item.get("name") == "Call Summary":
+                                call.summary = item.get("result")
+                                break
+                    elif isinstance(structured_data, list):
+                        # Handle list format just in case
+                        for item in structured_data:
+                            if isinstance(item, dict) and item.get("name") == "Call Summary":
+                                call.summary = item.get("result")
+                                break
+                
+            raw_sentiment = analysis.get("sentiment")
+            if raw_sentiment:
+                try:
+                    from app.models.call import SentimentType
+                    call.sentiment = SentimentType(raw_sentiment.lower())
+                except (ValueError, ImportError):
+                    logger.warning("Unknown sentiment value received: %s", raw_sentiment)
 
             if client is not None:
                 client.last_call_attempt_at = ended_at
@@ -533,9 +600,14 @@ async def receive_vapi_webhook(request: Request):
                 call.status = CallStatus.IN_PROGRESS
                 if client is not None:
                     client.status = ClientStatus.IN_PROGRESS
-            elif status_value == "ended" and call.status not in {CallStatus.COMPLETED, CallStatus.FAILED, CallStatus.NO_ANSWER, CallStatus.BUSY, CallStatus.VOICEMAIL}:
-                # Preliminary update until report arrives
-                call.status = CallStatus.COMPLETED
+            elif status_value == "ended":
+                # Only update to COMPLETED if not already in a terminal/special state
+                current_status_str = str(call.status.value) if hasattr(call.status, "value") else str(call.status)
+                terminal_statuses = {"completed", "failed", "no_answer", "busy", "voicemail", "rescheduled", "refused"}
+                
+                is_terminal = any(s in current_status_str.lower() for s in terminal_statuses)
+                if not is_terminal:
+                    call.status = CallStatus.COMPLETED
 
         elif event_type == "function-call":
             function_call_payload = ((payload.get("message") or {}).get("functionCall") or {})
@@ -565,7 +637,9 @@ async def receive_vapi_webhook(request: Request):
                     lead_timezone=parameters.get("lead_timezone") or client.timezone,
                     call_window=call_window,
                 )
-                if not booking.success:
+                if booking.success:
+                    call.status = CallStatus.RESCHEDULED
+                else:
                     logger.warning(
                         "book_reschedule function-call rejected: client_id=%s reason=%s confirmed_datetime=%s",
                         client.id,
@@ -579,8 +653,8 @@ async def receive_vapi_webhook(request: Request):
             "client_id": str(client.id) if client else None,
             "call_id": str(call.id) if call else None,
             "event_type": event_type,
-            "client_status": client.status if client else None,
-            "call_status": call.status if call else None,
+            "client_status": str(client.status.value) if client and hasattr(client.status, "value") else str(client.status if client else None),
+            "call_status": str(call.status.value) if call and hasattr(call.status, "value") else str(call.status if call else None),
         })
         logger.info(
             "Vapi webhook processed: event_type=%s call_id=%s final_call_status=%s final_client_status=%s",

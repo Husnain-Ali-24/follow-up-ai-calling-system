@@ -115,6 +115,7 @@ def _build_call_events(call: Call, client: Client | None) -> list[CallEventRespo
 @router.get("/", response_model=CallListResponse)
 def list_calls(
     search: str | None = None,
+    status: CallStatus | None = None,
     page: int = 1,
     per_page: int = 25,
     db: Session = Depends(get_db),
@@ -125,6 +126,10 @@ def list_calls(
     resolved_per_page = min(max(per_page, 1), 100)
 
     query = db.query(Call, Client).outerjoin(Client, Client.id == Call.client_id)
+    
+    if status:
+        query = query.filter(Call.status == status)
+
     if search:
         query = query.filter(
             or_(

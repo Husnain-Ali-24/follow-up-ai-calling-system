@@ -13,6 +13,7 @@ import {
   Trash2, 
   Tag as TagIcon,
   ChevronRight,
+  Filter,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import ClientFormModal from '../components/clients/ClientFormModal';
@@ -30,6 +31,7 @@ export default function ClientsPage() {
     pageIndex: 0,
     pageSize: 10,
   });
+  const [statusFilter, setStatusFilter] = useState('');
   const [rowSelection, setRowSelection] = useState({});
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -42,6 +44,7 @@ export default function ClientsPage() {
     try {
       const result = await clientService.getClients({
         search,
+        status: statusFilter,
         page: pagination.pageIndex + 1,
         per_page: pagination.pageSize,
       });
@@ -67,13 +70,13 @@ export default function ClientsPage() {
   useEffect(() => {
     const timer = setTimeout(fetchClients, 300);
     return () => clearTimeout(timer);
-  }, [search, pagination.pageIndex, pagination.pageSize]);
+  }, [search, statusFilter, pagination.pageIndex, pagination.pageSize]);
 
   useEffect(() => {
     setPagination((current) => (
       current.pageIndex === 0 ? current : { ...current, pageIndex: 0 }
     ));
-  }, [search]);
+  }, [search, statusFilter]);
 
   const selectedRows = useMemo(() => {
     return Object.keys(rowSelection).map(id => clients.find(c => c.id === id)).filter(Boolean);
@@ -224,6 +227,25 @@ export default function ClientsPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-full h-10 bg-bg-card border-border rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-1 focus:ring-accent-primary transition-all shadow-sm"
           />
+        </div>
+
+        <div className="relative ml-4">
+          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={16} />
+          <select 
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="h-10 bg-bg-card border border-border rounded-lg py-2 pl-10 pr-8 text-sm focus:outline-none focus:ring-1 focus:ring-accent-primary transition-all appearance-none cursor-pointer min-w-[160px] shadow-sm"
+          >
+            <option value="">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="queued">Queued</option>
+            <option value="in_progress">In Progress</option>
+            <option value="completed">Completed</option>
+            <option value="rescheduled">Rescheduled</option>
+            <option value="failed">Failed</option>
+            <option value="refused">Refused</option>
+            <option value="manual_follow_up_required">Manual Follow-up</option>
+          </select>
         </div>
 
         {selectedRows.length > 0 && (

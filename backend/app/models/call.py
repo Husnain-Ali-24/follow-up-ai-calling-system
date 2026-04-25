@@ -16,6 +16,7 @@ class CallStatus(str, enum.Enum):
     BUSY = "busy"
     FAILED = "failed"
     REFUSED = "refused"
+    RESCHEDULED = "rescheduled"
 
 
 class SentimentType(str, enum.Enum):
@@ -28,10 +29,10 @@ class Call(Base):
     __tablename__ = "calls"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
     vapi_call_id = Column(String(255), unique=True, nullable=True)
     attempt_number = Column(Integer, nullable=False, default=1, server_default="1")
-    status = Column(Enum(CallStatus), nullable=False, default=CallStatus.INITIATED)
+    status = Column(Enum(CallStatus), nullable=False, default=CallStatus.INITIATED, index=True)
     started_at = Column(DateTime(timezone=True), nullable=True)
     ended_at = Column(DateTime(timezone=True), nullable=True)
     duration_seconds = Column(Integer, nullable=True)
@@ -49,7 +50,7 @@ class Reschedule(Base):
     __tablename__ = "reschedules"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
     call_id = Column(UUID(as_uuid=True), ForeignKey("calls.id", ondelete="SET NULL"), nullable=True)
     original_time = Column(DateTime(timezone=True), nullable=False)
     new_time = Column(DateTime(timezone=True), nullable=False)

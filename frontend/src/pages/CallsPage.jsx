@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import PageHeader from '../components/shared/PageHeader';
 import DataTable from '../components/shared/DataTable';
 import callService from '../services/callService';
-import { Search, MessageSquare, Download } from 'lucide-react';
+import { Search, MessageSquare, Download, Filter } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 import { useNotifications } from '../hooks/useNotifications';
@@ -14,6 +14,7 @@ export default function CallsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: 10,
@@ -25,6 +26,7 @@ export default function CallsPage() {
     try {
       const result = await callService.getCalls({
         search,
+        status: statusFilter,
         page: pagination.pageIndex + 1,
         per_page: pagination.pageSize,
       });
@@ -43,13 +45,13 @@ export default function CallsPage() {
 
   useEffect(() => {
     fetchCalls();
-  }, [search, pagination.pageIndex, pagination.pageSize]);
+  }, [search, statusFilter, pagination.pageIndex, pagination.pageSize]);
 
   useEffect(() => {
     setPagination((current) => (
       current.pageIndex === 0 ? current : { ...current, pageIndex: 0 }
     ));
-  }, [search]);
+  }, [search, statusFilter]);
 
   const handleExportCsv = () => {
     if (!calls.length) {
@@ -127,11 +129,12 @@ export default function CallsPage() {
       cell: ({ getValue }) => {
         const sentiment = getValue();
         if (!sentiment) return <span className="text-text-muted">—</span>;
+        const s = String(sentiment).toLowerCase();
         return (
           <span className={cn(
             "text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider border",
-            sentiment === 'positive' ? 'border-status-success/20 text-status-success' :
-            sentiment === 'negative' ? 'border-status-error/20 text-status-error' :
+            s === 'positive' ? 'border-status-success/20 text-status-success' :
+            s === 'negative' ? 'border-status-error/20 text-status-error' :
             'border-status-warning/20 text-status-warning'
           )}>
             {sentiment}
@@ -195,6 +198,26 @@ export default function CallsPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-background-card border border-border rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-1 focus:ring-accent-primary transition-all"
           />
+        </div>
+
+        <div className="relative">
+          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={16} />
+          <select 
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="bg-background-card border border-border rounded-lg py-2 pl-10 pr-8 text-sm focus:outline-none focus:ring-1 focus:ring-accent-primary transition-all appearance-none cursor-pointer"
+          >
+            <option value="">All Statuses</option>
+            <option value="initiated">Initiated</option>
+            <option value="in_progress">In Progress</option>
+            <option value="completed">Completed</option>
+            <option value="rescheduled">Rescheduled</option>
+            <option value="no_answer">No Answer</option>
+            <option value="voicemail">Voicemail</option>
+            <option value="busy">Busy</option>
+            <option value="failed">Failed</option>
+            <option value="refused">Refused</option>
+          </select>
         </div>
       </div>
 

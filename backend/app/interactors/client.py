@@ -10,7 +10,7 @@ from app.schemas.client import ClientCreate, ClientUpdate
 from app.services.calling_window import get_effective_calling_window
 from app.services.client_scheduling import resolve_lead_timezone, resolve_scheduled_call_time
 
-def get_clients(db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None) -> List[Client]:
+def get_clients(db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None, status: Optional[str] = None) -> List[Client]:
     query = db.query(Client)
     if search:
         query = query.filter(
@@ -20,6 +20,8 @@ def get_clients(db: Session, skip: int = 0, limit: int = 100, search: Optional[s
                 Client.email.ilike(f"%{search}%")
             )
         )
+    if status:
+        query = query.filter(Client.status == status)
     return query.order_by(Client.created_at.desc()).offset(skip).limit(limit).all()
 
 
@@ -29,6 +31,7 @@ def get_clients_page(
     page: int = 1,
     per_page: int = 25,
     search: Optional[str] = None,
+    status: Optional[str] = None,
 ) -> dict:
     query = db.query(Client)
     if search:
@@ -39,6 +42,9 @@ def get_clients_page(
                 Client.email.ilike(f"%{search}%")
             )
         )
+
+    if status:
+        query = query.filter(Client.status == status)
 
     total = query.count()
     pages = ceil(total / per_page) if total else 0

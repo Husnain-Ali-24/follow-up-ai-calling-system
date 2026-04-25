@@ -1,4 +1,4 @@
-import { Check, Phone, PhoneForwarded, MessageSquare, AlertCircle, PhoneIncoming } from 'lucide-react';
+import { Check, Phone, PhoneForwarded, MessageSquare, AlertCircle, PhoneIncoming, Activity } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 const iconMap = {

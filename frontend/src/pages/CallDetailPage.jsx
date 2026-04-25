@@ -147,18 +147,18 @@ export default function CallDetailPage() {
           <div className="bg-background-card border border-border rounded-xl p-6">
             <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted mb-4">AI Summary</h3>
             <p className="text-text-primary leading-relaxed">
-              {call.summary || "No summary available for this call."}
+              {typeof call.summary === 'string' ? call.summary : "No summary available for this call."}
             </p>
             
             <div className="mt-6 pt-6 border-t border-border">
               <h4 className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-3">Detected Sentiment</h4>
               <div className={cn(
                 "inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider",
-                call.sentiment === 'positive' ? 'bg-status-success-bg text-status-success' :
-                call.sentiment === 'negative' ? 'bg-status-error-bg text-status-error' :
+                String(call.sentiment).toLowerCase() === 'positive' ? 'bg-status-success-bg text-status-success' :
+                String(call.sentiment).toLowerCase() === 'negative' ? 'bg-status-error-bg text-status-error' :
                 'bg-status-warning-bg text-status-warning'
               )}>
-                {call.sentiment || '—'}
+                {call.sentiment || 'Neutral'}
               </div>
             </div>
           </div>
@@ -167,12 +167,34 @@ export default function CallDetailPage() {
           <div className="bg-background-card border border-border rounded-xl p-6">
             <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted mb-4">Structured Data</h3>
             <div className="space-y-4">
-              {call.structured_answers && Object.entries(call.structured_answers).map(([key, value]) => (
-                <div key={key} className="p-3 bg-background-secondary rounded-lg border border-border/50">
-                  <p className="text-[10px] uppercase text-text-muted font-bold tracking-tight mb-1">{key.replace(/_/g, ' ')}</p>
-                  <p className="text-sm text-text-primary">{value}</p>
-                </div>
-              ))}
+              {(() => {
+                try {
+                  const data = typeof call.structured_answers === 'string' 
+                    ? JSON.parse(call.structured_answers) 
+                    : call.structured_answers;
+                  
+                  if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
+                    return <p className="text-sm text-text-muted italic">No structured data extracted.</p>;
+                  }
+
+                  return Object.entries(data).map(([key, value]) => {
+                    const name = (typeof value === 'object' && value?.name) ? value.name : key.replace(/_/g, ' ');
+                    const displayValue = (typeof value === 'object' && value?.result !== undefined) 
+                      ? String(value.result) 
+                      : typeof value === 'object' ? JSON.stringify(value) : String(value);
+
+                    return (
+                      <div key={key} className="p-3 bg-background-secondary rounded-lg border border-border/50">
+                        <p className="text-[10px] uppercase text-text-muted font-bold tracking-tight mb-1">{name}</p>
+                        <p className="text-sm text-text-primary whitespace-pre-wrap">{displayValue}</p>
+                      </div>
+                    );
+                  });
+                } catch (e) {
+                  console.error("Failed to parse structured data:", e);
+                  return <p className="text-sm text-text-muted italic">Data format error.</p>;
+                }
+              })()}
             </div>
           </div>
 

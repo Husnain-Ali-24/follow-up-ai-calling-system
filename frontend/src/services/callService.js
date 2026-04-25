@@ -4,6 +4,7 @@ const callService = {
   getCalls: async (filters) => {
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
+    if (filters?.status) params.append('status', filters.status);
     if (filters?.page) params.append('page', filters.page);
     if (filters?.per_page) params.append('per_page', filters.per_page);
 
