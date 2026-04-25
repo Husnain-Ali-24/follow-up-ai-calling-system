@@ -59,19 +59,37 @@ def parse_callback_datetime(
     if not normalized_value:
         return None
 
-    # Keep support for ISO 8601 `Z` suffix in addition to offset-based strings.
+    # Common Vapi formats can include ' ' instead of 'T'
+    normalized_value = normalized_value.replace(" ", "T")
+    
+    # Handle 'Z' suffix
     if normalized_value.endswith("Z"):
-        normalized_value = f"{normalized_value[:-1]}+00:00"
+        normalized_value = normalized_value[:-1] + "+00:00"
 
-    try:
-        parsed = datetime.fromisoformat(normalized_value)
-    except ValueError:
-        return None
+    # Try parsing several variations
+    for fmt in (None, "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"):
+        try:
+            if fmt is None:
+                parsed = datetime.fromisoformat(normalized_value)
+            else:
+                parsed = datetime.strptime(normalized_value, fmt)
+            break
+        except (ValueError, TypeError):
+            continue
+    else:
+        # Final attempt: just try the first 19 chars if it's long
+        if len(normalized_value) > 19:
+            try:
+                parsed = datetime.fromisoformat(normalized_value[:19])
+            except (ValueError, TypeError):
+                return None
+        else:
+            return None
 
     try:
         target_tz = ZoneInfo(timezone_name)
     except ZoneInfoNotFoundError:
-        return None
+        target_tz = timezone.utc
 
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=target_tz)

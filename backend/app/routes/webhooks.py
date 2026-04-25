@@ -24,15 +24,29 @@ from app.services.webhook_verifier import verify_vapi_request
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 logger = logging.getLogger(__name__)
 
+# Force print for docker logs visibility
+def debug_log(msg: str):
+    print(f"[VAPI-DEBUG] {msg}", flush=True)
+    logger.info(msg)
+
 
 def _extract_event_type(payload: dict) -> str | None:
+    event_type = payload.get("type")
+    if event_type:
+        return str(event_type)
     message = payload.get("message") or {}
-    return message.get("type") or payload.get("type")
+    return message.get("type")
 
 
 def _extract_call_block(payload: dict) -> dict:
+    call = payload.get("call")
+    if isinstance(call, dict):
+        return call
     message = payload.get("message") or {}
-    return message.get("call") or payload.get("call") or {}
+    call = message.get("call")
+    if isinstance(call, dict):
+        return call
+    return {}
 
 
 def _extract_vapi_call_id(payload: dict) -> str | None:
@@ -41,27 +55,76 @@ def _extract_vapi_call_id(payload: dict) -> str | None:
 
 def _extract_customer_number(payload: dict) -> str | None:
     call_block = _extract_call_block(payload)
-    customer = call_block.get("customer") or payload.get("customer") or {}
-    return customer.get("number")
+    customer = call_block.get("customer")
+    if isinstance(customer, dict) and customer.get("number"):
+        return str(customer.get("number"))
+    
+    # Try top-level or message-level customer
+    customer = payload.get("customer") or (payload.get("message") or {}).get("customer")
+    if isinstance(customer, dict) and customer.get("number"):
+        return str(customer.get("number"))
+
+    return None
 
 
 def _extract_tool_call_list(payload: dict) -> list[dict]:
+    # Check for direct object
+    tc = payload.get("toolCall")
+    if isinstance(tc, dict):
+        return [tc]
+
+    for key in ("toolCallList", "toolCalls", "tool_calls"):
+        tool_calls = payload.get(key)
+        if isinstance(tool_calls, list):
+            return tool_calls
+    
+    # Check message level
     message = payload.get("message") or {}
-    tool_calls = message.get("toolCallList")
-    if isinstance(tool_calls, list):
-        return tool_calls
+    tc = message.get("toolCall")
+    if isinstance(tc, dict):
+        return [tc]
+
+    for key in ("toolCallList", "toolCalls", "tool_calls"):
+        tool_calls = message.get(key)
+        if isinstance(tool_calls, list):
+            return tool_calls
+    
     return []
 
 
 def _extract_tool_arguments(tool_call: dict) -> dict:
-    arguments = tool_call.get("arguments")
-    if isinstance(arguments, dict):
-        return arguments
+    # 1. Check top-level 'arguments'
+    args = tool_call.get("arguments")
+    if isinstance(args, dict):
+        return args
+    if isinstance(args, str) and args.strip():
+        try:
+            return json.loads(args)
+        except json.JSONDecodeError:
+            pass
 
-    function_block = tool_call.get("function") or {}
-    parameters = function_block.get("parameters")
-    if isinstance(parameters, dict):
-        return parameters
+    # 2. Check 'function' block
+    fn = tool_call.get("function") or {}
+    
+    # 2a. Check 'function.arguments' (standard OpenAI format, often a string)
+    args = fn.get("arguments")
+    if isinstance(args, dict):
+        return args
+    if isinstance(args, str) and args.strip():
+        try:
+            return json.loads(args)
+        except json.JSONDecodeError:
+            pass
+
+    # 2b. Check 'function.parameters' (some Vapi formats)
+    params = fn.get("parameters")
+    if isinstance(params, dict):
+        return params
+    if isinstance(params, str) and params.strip():
+        try:
+            return json.loads(params)
+        except json.JSONDecodeError:
+            pass
 
     return {}
 
@@ -196,14 +259,21 @@ async def receive_vapi_tool_calls(request: Request):
     payload = await request.json()
     event_type = _extract_event_type(payload)
     tool_call_list = _extract_tool_call_list(payload)
+    
+    debug_log(f"Received tool-calls. event_type={event_type}, count={len(tool_call_list)}")
+    if tool_call_list:
+        for idx, tc in enumerate(tool_call_list):
+            debug_log(f"  Tool[{idx}]: id={tc.get('id')}, name={tc.get('name')}, func_name={ (tc.get('function') or {}).get('name') }")
 
-    if event_type != "tool-calls" or not tool_call_list:
+    if not tool_call_list:
+        debug_log("No tool calls found in payload.")
         return {"results": []}
 
     db = SessionLocal()
     try:
         call = _find_or_create_call(db, payload)
         client = _get_client_for_call(db, call)
+        debug_log(f"Identification: call_found={call is not None}, client_found={client is not None}")
         call_window = get_effective_calling_window(db)
         results: list[dict] = []
         should_commit = False
@@ -211,8 +281,15 @@ async def receive_vapi_tool_calls(request: Request):
 
         for tool_call in tool_call_list:
             tool_call_id = str(tool_call.get("id") or "")
-            tool_name = str(tool_call.get("name") or "").strip()
+            debug_log(f"  Raw Tool Call: {json.dumps(tool_call, default=str)}")
+            tool_name_raw = tool_call.get("name")
+            if not tool_name_raw:
+                function_block = tool_call.get("function") or {}
+                tool_name_raw = function_block.get("name")
+            
+            tool_name = str(tool_name_raw or "").strip().lower().replace(" ", "_").replace("-", "_")
             arguments = _extract_tool_arguments(tool_call)
+            debug_log(f"  Arguments: {json.dumps(arguments, default=str)}")
 
             if not tool_call_id:
                 continue
@@ -245,7 +322,7 @@ async def receive_vapi_tool_calls(request: Request):
                 )
                 continue
 
-            if tool_name == "book_reschedule":
+            if tool_name in ("book_reschedule", "book_callback", "confirm_reschedule"):
                 if client is None:
                     results.append(
                         _build_tool_result(
@@ -263,6 +340,8 @@ async def receive_vapi_tool_calls(request: Request):
                         arguments.get("confirmed_datetime")
                         or arguments.get("confirmed_callback_time")
                         or arguments.get("scheduled_call_time")
+                        or arguments.get("lead_requested_callback_time")
+                        or arguments.get("requested_callback_time")
                     ),
                     reason=arguments.get("reason") or arguments.get("notes"),
                     lead_timezone=arguments.get("lead_timezone") or client.timezone,
@@ -325,6 +404,7 @@ async def receive_vapi_tool_calls(request: Request):
                 ),
             })
 
+        debug_log(f"Returning tool results: {json.dumps(results, default=str)}")
         return {"results": results}
     finally:
         db.close()
