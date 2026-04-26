@@ -11,7 +11,7 @@ export default function StatsGrid({ stats, loading }) {
       bg: 'bg-accent-glow'
     },
     { 
-      label: 'Successful', 
+      label: 'Completed', 
       value: stats?.calls_successful || 0, 
       icon: CheckCircle2, 
       color: 'text-status-success',

@@ -56,14 +56,16 @@ def get_dashboard_overview(
 
     client_map = {str(client.id): client for client in all_clients}
 
-    calls_today = [
-        call for call in recent_calls
-        if (call.created_at or now_utc) >= start_of_today
-    ]
-
-    successful_calls = [call for call in calls_today if call.status in {CallStatus.COMPLETED, CallStatus.RESCHEDULED}]
-    failed_calls = [call for call in calls_today if call.status in FAILED_CALL_STATUSES]
-    rescheduled_calls_today = [call for call in calls_today if call.status == CallStatus.RESCHEDULED]
+    total_calls_count = db.query(Call).count()
+    
+    from sqlalchemy import cast, String
+    
+    # Cast to string for case-insensitive matching with the Enum column
+    total_completed = db.query(Call).filter(cast(Call.status, String).ilike("completed")).count()
+    total_rescheduled = db.query(Call).filter(cast(Call.status, String).ilike("rescheduled")).count()
+    
+    failed_status_strings = [s.value for s in FAILED_CALL_STATUSES]
+    total_failed = db.query(Call).filter(cast(Call.status, String).in_(failed_status_strings)).count()
 
     duration_values = [
         call.duration_seconds for call in recent_calls
@@ -71,13 +73,10 @@ def get_dashboard_overview(
     ]
     avg_duration_seconds = int(sum(duration_values) / len(duration_values)) if duration_values else 0
 
-    ended_calls = [
-        call for call in recent_calls
-        if call.status in FAILED_CALL_STATUSES or call.status in {CallStatus.COMPLETED, CallStatus.RESCHEDULED}
-    ]
-    success_rate = int(
-        round((len([call for call in ended_calls if call.status in {CallStatus.COMPLETED, CallStatus.RESCHEDULED}]) / len(ended_calls)) * 100)
-    ) if ended_calls else 0
+    # Total ended for rate calculation
+    total_ended = total_completed + total_rescheduled + total_failed
+    
+    success_rate = int(round(((total_completed + total_rescheduled) / total_ended) * 100)) if total_ended > 0 else 0
 
     volume_map: dict[str, dict[str, int]] = {}
     for day_offset in range(7):
@@ -100,10 +99,7 @@ def get_dashboard_overview(
         if call.status == CallStatus.COMPLETED:
             volume_map[label]["completed"] += 1
         elif call.status == CallStatus.RESCHEDULED:
-            # We already count reschedules from Reschedule model below, 
-            # but if we want to be safe we could ensure no double counting.
-            # Actually, let's keep the existing logic for volume_map["rescheduled"] 
-            # as it uses the Reschedule model which is more accurate for historical data.
+            # For the chart, we keep daily resolution
             pass
         elif call.status in FAILED_CALL_STATUSES:
             volume_map[label]["failed"] += 1
@@ -131,10 +127,10 @@ def get_dashboard_overview(
         )
 
     stats = DashboardStats(
-        calls_today=len(calls_today),
-        calls_successful=len(successful_calls),
-        calls_failed=len(failed_calls),
-        calls_rescheduled=len(rescheduled_calls_today),
+        calls_today=total_calls_count,
+        calls_successful=total_completed,
+        calls_failed=total_failed,
+        calls_rescheduled=total_rescheduled,
         calls_pending=len([client for client in all_clients if client.status in {ClientStatus.PENDING, ClientStatus.QUEUED}]),
         success_rate=success_rate,
         avg_duration_seconds=avg_duration_seconds,
